@@ -12,7 +12,24 @@
 
 ## Local development
 
-**Clash frontend** (Vite loads env from the **repository root** — keep `.env` next to `clash-frontend/`):
+### Run the Clash frontend
+
+Vite reads environment variables from a **`.env` file at the repository root** (not inside `clash-frontend/`). See `clash-frontend/vite.config.ts` (`envDir: '..'`).
+
+**1. Create `.env` from the template**
+
+```bash
+cd /path/to/Stellar-Game-Studio
+cp .env.example .env
+```
+
+Edit `.env` and set `VITE_DEV_POINTS_TRACKER_ADMIN_SECRET` if you want the UI to submit leaderboard scores after duels (see optional vars below). To generate a full `.env` with dev wallets and contract IDs from a local deploy:
+
+```bash
+bun run setup
+```
+
+**2. Install and start the dev server**
 
 ```bash
 cd clash-frontend
@@ -20,10 +37,45 @@ npm install
 npm run dev
 ```
 
-- **Build**: `npm run build` (runs `prebuild` to sync `duel_commit_circuit` → `public/circuits/duel_commit_circuit.json`).
-- **Contracts / deploy**: from the repo root, `bun run setup` and `bun run deploy` (see `scripts/`). Workspace Rust contracts: `cargo build` from `contracts/<crate>` as needed.
+The app opens at **http://localhost:3000** (see `clash-frontend/vite.config.ts`).
 
-Set at least `VITE_CLASH_CONTRACT_ID` (and smart-account env vars if you use the passkey flow). Optional leaderboard writes need `VITE_DEV_POINTS_TRACKER_*` — see `clash-frontend/src/services/pointsService.ts`.
+
+**Contracts / deploy (repo root):** `bun run build`, `bun run deploy`, `bun run bindings` — see `scripts/`. Rust contracts: `cargo test` from `contracts/<crate>` as needed.
+
+### Environment variables (`.env` at repo root)
+
+Copy from [`.env.example`](.env.example). Minimum set to run the ZK duel UI against public testnet contracts:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_SOROBAN_RPC_URL` | Yes | Soroban RPC endpoint |
+| `VITE_NETWORK_PASSPHRASE` | Yes | Stellar network passphrase |
+| `VITE_MOCK_GAME_HUB_CONTRACT_ID` | Yes | Game Hub contract (economy hook) |
+| `VITE_CLASH_CONTRACT_ID` | Yes | Clash game logic contract |
+| `VITE_ACCOUNT_WASM_HASH` | Yes* | Smart-account WASM hash for passkey wallets |
+| `VITE_WEBAUTHN_VERIFIER_ADDRESS` | Yes* | WebAuthn verifier contract |
+| `VITE_ED25519_VERIFIER_ADDRESS` | Yes* | Ed25519 verifier for delegated session keys |
+| `VITE_DEV_POINTS_TRACKER_ADMIN_ADDRESS` | No | Public key allowed to call `record_result` |
+| `VITE_DEV_POINTS_TRACKER_ADMIN_SECRET` | No | Matching secret; omit to skip leaderboard writes |
+
+\*Required for **Create Fresh Wallet** / passkey flow and smart-account ZK duels.
+
+**Example values (testnet)** — already in `.env.example`:
+
+```env
+VITE_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+VITE_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+VITE_MOCK_GAME_HUB_CONTRACT_ID=CB4VZAT2U3UC6XFK3N23SKRF2NDCMP3QHJYMCHHFMZO7MRQO6DQ2EMYG
+VITE_CLASH_CONTRACT_ID=CCRG66MIX7ATFB4T3VJZ4TJLWKNRXKBX6HZWPUL2U2UQLUO5564F5IL5
+VITE_ACCOUNT_WASM_HASH=0a7acdeb68d2f08f6ab87dec7cb1542db02b8f1a491f14ce4ccb56fe21cb95ac
+VITE_WEBAUTHN_VERIFIER_ADDRESS=CCMR63YE5T7MPWREF3PC5XNTTGXFSB4GYUGUIT5POHP2UGCS65TBIUUU
+VITE_ED25519_VERIFIER_ADDRESS=CCJOUKLCZVCXS4VIBBEA7S3SPWZQS5DPE5A4YG67RA3Z7E3SJZAUJFQA
+
+VITE_DEV_POINTS_TRACKER_ADMIN_ADDRESS=
+VITE_DEV_POINTS_TRACKER_ADMIN_SECRET=   
+```
+
+Optional: `VITE_DEV_POINTS_TRACKER_CONTRACT_ID` (defaults to the public testnet points tracker if unset). Leaderboard behavior: `clash-frontend/src/services/pointsService.ts`.
 
 ---
 
@@ -38,12 +90,12 @@ Clash of Pirates is a strategic turn-based dueling game where two pirate captain
 | Contract | Explorer |
 |----------|----------|
 | **Clash** (game logic) | [CCRG66MIX7ATFB4T3VJZ4TJLWKNRXKBX6HZWPUL2U2UQLUO5564F5IL5](https://stellar.expert/explorer/testnet/contract/CCRG66MIX7ATFB4T3VJZ4TJLWKNRXKBX6HZWPUL2U2UQLUO5564F5IL5) |
-| **Game Hub** (economy) | `CABIDOAQBAX55E44PNKC4UPWTJQAYJ6M2AVSKQGY5JHGRIQC3E6ZXWDC` |
+| **Game Hub** (economy) | [CB4VZAT2U3UC6XFK3N23SKRF2NDCMP3QHJYMCHHFMZO7MRQO6DQ2EMYG](https://stellar.expert/explorer/testnet/contract/CB4VZAT2U3UC6XFK3N23SKRF2NDCMP3QHJYMCHHFMZO7MRQO6DQ2EMYG) (`VITE_MOCK_GAME_HUB_CONTRACT_ID`) |
 | **Clash Token** (CSH rewards) | [CBO7OBLF5WXIIFCQIWGCVR53NWKPF6HE44DMJVT7SCEEH56NTXTRBTQN](https://stellar.expert/explorer/testnet/contract/CBO7OBLF5WXIIFCQIWGCVR53NWKPF6HE44DMJVT7SCEEH56NTXTRBTQN) |
 | **UltraHonk verifier** | [CCC4YINDGF7Z6OJ3WMSPR3OKIQQ4PVHQ6IMVJR7NORZX4PNFD565TLQV](https://stellar.expert/explorer/testnet/contract/CCC4YINDGF7Z6OJ3WMSPR3OKIQQ4PVHQ6IMVJR7NORZX4PNFD565TLQV) |
 | **Points tracker** (duel points / leaderboard) | [CBGYEIOWGSY6TGM6BFGPEUKM37TKPXAEETDRYACHJKVHOBZRNBIUMD6S](https://stellar.expert/explorer/testnet/contract/CBGYEIOWGSY6TGM6BFGPEUKM37TKPXAEETDRYACHJKVHOBZRNBIUMD6S) |
 
-Configure the Clash ID in `.env` as `VITE_CLASH_CONTRACT_ID`. For local admin-signed `record_result`, set `VITE_DEV_POINTS_TRACKER_*` vars (see `clash-frontend/src/services/pointsService.ts`).
+Configure contracts in the root `.env` (see [Local development](#local-development) and [`.env.example`](.env.example)).
 
 ### 🎯 How to Play
 
