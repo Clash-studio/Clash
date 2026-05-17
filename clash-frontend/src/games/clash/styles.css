@@ -2856,9 +2856,27 @@ button:disabled {
   cursor: pointer;
   padding: 0;
   text-align: left;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.25rem;
 }
 .leaderboard-addr-btn:hover {
   color: #00d4ff;
+}
+.leaderboard-addr-btn--copied {
+  color: #00d4ff;
+}
+.leaderboard-copy-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 4rem;
+  color: #00d4ff;
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .leaderboard-you-tag {
   color: #e5133a;

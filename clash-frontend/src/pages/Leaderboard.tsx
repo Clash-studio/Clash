@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { fetchLeaderboardData } from '@/services/pointsService';
 import { ClashGameService } from '@/games/clash/clashService';
 import { getContractId } from '@/utils/constants';
@@ -25,6 +25,7 @@ export function Leaderboard({ userAddress, onBack }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [lastFetch, setLastFetch] = useState<number | null>(null);
   const [tick, setTick] = useState(0);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   const clashServiceRef = useRef<ClashGameService | null>(null);
@@ -70,6 +71,12 @@ export function Leaderboard({ userAddress, onBack }: Props) {
   }, []);
 
   useEffect(() => {
+    if (!copiedAddress) return;
+    const id = window.setTimeout(() => setCopiedAddress(null), 1500);
+    return () => window.clearTimeout(id);
+  }, [copiedAddress]);
+
+  useEffect(() => {
     if (rows.length === 0) return;
     const unresolved = rows
       .map((r) => r.address)
@@ -108,8 +115,9 @@ export function Leaderboard({ userAddress, onBack }: Props) {
     return { rank: idx + 1, row: rows[idx]! };
   }, [rows, userAddress]);
 
-  const copyAddr = (addr: string) => {
-    void navigator.clipboard.writeText(addr);
+  const copyAddr = async (addr: string) => {
+    await navigator.clipboard.writeText(addr);
+    setCopiedAddress(addr);
   };
 
   const loading = status === 'loading';
@@ -217,14 +225,31 @@ export function Leaderboard({ userAddress, onBack }: Props) {
                   .join(' ');
                 const badge = rank === 1 ? '🏆' : rank === 2 ? '⚔' : rank === 3 ? '🛡' : '';
                 const ptsClass = rank === 1 ? 'lb-pts-top' : '';
+                const copied = copiedAddress === r.address;
                 return (
                   <tr key={r.address} className={rowClass}>
                     <td className={`leaderboard-rank ${rankClass}`}>{rank}</td>
                     <td className="leaderboard-captain mono">
                       {usernames[r.address] && <div className="leaderboard-username">@{usernames[r.address]}</div>}
-                      <button type="button" className="leaderboard-addr-btn" onClick={() => copyAddr(r.address)} title="Copy address">
-                        {truncateAddr(r.address)}
-                        {isYou && <span className="leaderboard-you-tag"> (YOU)</span>}
+                      <button
+                        type="button"
+                        className={`leaderboard-addr-btn ${copied ? 'leaderboard-addr-btn--copied' : ''}`}
+                        onClick={() => void copyAddr(r.address)}
+                        title={copied ? 'Copied address' : 'Copy address'}
+                        aria-label={copied ? 'Address copied' : 'Copy address'}
+                      >
+                        <span>
+                          {truncateAddr(r.address)}
+                          {isYou && <span className="leaderboard-you-tag"> (YOU)</span>}
+                        </span>
+                        <span className="leaderboard-copy-state" aria-live="polite">
+                          {copied && (
+                            <>
+                              <Check size={12} aria-hidden />
+                              Copied
+                            </>
+                          )}
+                        </span>
                       </button>
                     </td>
                     <td className={`leaderboard-pts ${ptsClass}`}>{r.points.toLocaleString()}</td>
