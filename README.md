@@ -1,4 +1,4 @@
-# ⚔️ Clash of Pirates - Zero-Knowledge Combat on Stellar
+# ⚔️ Clash - Zero-Knowledge Combat on Stellar
 
 > A fully on-chain PvP strategy game where cryptographic proofs ensure fair play without revealing your moves until the perfect moment.
 
