@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, Loader2, Lock, Power, RefreshCw, ShieldCheck, Wallet } from 'lucide-react';
 import { rpc } from '@stellar/stellar-sdk';
@@ -16,6 +16,8 @@ const ACCOUNT_WASM_HASH = import.meta.env.VITE_ACCOUNT_WASM_HASH ?? '';
 const WEBAUTHN_VERIFIER = import.meta.env.VITE_WEBAUTHN_VERIFIER_ADDRESS ?? '';
 const missingClashContract = !CLASH_CONTRACT_ID?.trim();
 const missingSmartAccountEnv = !ACCOUNT_WASM_HASH?.trim() || !WEBAUTHN_VERIFIER?.trim();
+const USERNAME_RESERVED_NAMES = new Set(['admin', 'system', 'moderator', 'support']);
+const USERNAME_PATTERN = /^[a-z0-9_]+$/;
 
 /** Must match `DELEGATE_SESSION_STORAGE_KEY` in smartAccountService.ts (read-only duplicate for UI checks). */
 const DELEGATE_SESSION_STORAGE_KEY = 'clash-smart-account-delegate-session-v1';
@@ -66,6 +68,22 @@ function formatTrackerPointsRail(raw: number | null): string {
   return raw.toLocaleString();
 }
 
+function validateUsernameInput(username: string): string | null {
+  if (username.length < 3) {
+    return 'Username must be at least 3 characters';
+  }
+  if (username.length > 20) {
+    return 'Username must be 20 characters or fewer';
+  }
+  if (!USERNAME_PATTERN.test(username)) {
+    return 'Username can only use lowercase letters, numbers, and underscores';
+  }
+  if (USERNAME_RESERVED_NAMES.has(username)) {
+    return 'That username is reserved. Try another one.';
+  }
+  return null;
+}
+
 type ClashGameArenaProps = {
   onOpenLeaderboard?: () => void;
   onWalletAddressChange?: (address: string | null) => void;
@@ -100,6 +118,7 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
   const [username, setUsername] = useState<string | null>(null);
   const [identityLoaded, setIdentityLoaded] = useState(false);
   const [usernamePromptOpen, setUsernamePromptOpen] = useState(false);
+  const [usernamePromptDismissed, setUsernamePromptDismissed] = useState(false);
   const [usernameInput, setUsernameInput] = useState('');
   const [usernameBusy, setUsernameBusy] = useState(false);
   const [cshBalance, setCshBalance] = useState<bigint>(0n);
@@ -356,13 +375,14 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
       identityLoaded &&
       hasActiveSessionKey &&
       username === null &&
-      !usernameBusy;
+      !usernameBusy &&
+      !usernamePromptDismissed;
     if (shouldOpenUsernamePrompt) {
       setUsernamePromptOpen(true);
     } else if (!walletConnected || username !== null) {
       setUsernamePromptOpen(false);
     }
-  }, [walletConnected, identityLoaded, hasActiveSessionKey, username, usernameBusy]);
+  }, [walletConnected, identityLoaded, hasActiveSessionKey, username, usernameBusy, usernamePromptDismissed]);
 
   const handleCreateWallet = async () => {
     setWalletGateBusy('create');
@@ -418,15 +438,17 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
     setHasActiveSessionKey(false);
     setSessionExpiresLedger(null);
     setUsername(null);
+    setUsernamePromptDismissed(false);
     setIdentityLoaded(false);
     setCshBalance(0n);
   };
 
   const handleSaveUsername = async () => {
     if (!userAddress) return;
-    const normalized = usernameInput.trim().toLowerCase();
-    if (normalized.length < 3) {
-      setError('Username must be at least 3 characters');
+    const normalized = usernameInput.trim();
+    const validationError = validateUsernameInput(normalized);
+    if (validationError) {
+      setError(validationError);
       return;
     }
     setUsernameBusy(true);
@@ -440,12 +462,31 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
       await clashService.setUsernameWithSmartAccount(userAddress, normalized, smartAccountService);
       setUsername(normalized);
       setUsernamePromptOpen(false);
+      setUsernamePromptDismissed(false);
       setUsernameInput('');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to set username';
       setError(message);
     } finally {
       setUsernameBusy(false);
+    }
+  };
+
+  const closeUsernamePrompt = () => {
+    setUsernamePromptOpen(false);
+    setUsernamePromptDismissed(true);
+    setUsernameInput('');
+  };
+
+  const handleUsernameDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeUsernamePrompt();
+      return;
+    }
+    if (event.key === 'Enter' && !usernameBusy) {
+      event.preventDefault();
+      void handleSaveUsername();
     }
   };
 
@@ -501,14 +542,14 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
       <div className="arena-topbar">
         <div>
           <h2>CLASH</h2>
-          <p>Clash of pirates · ARENA</p>
+          <p>Clash of pirates 路 ARENA</p>
         </div>
         <div className="arena-topbar-right">
         <div className={`wallet-pill ${walletConnected ? 'connected' : ''}`}>
-          <span className={`wallet-pill-dot ${walletConnected ? 'on' : ''}`}>●</span>
+          <span className={`wallet-pill-dot ${walletConnected ? 'on' : ''}`}>鈼?/span>
           {walletConnected && userAddress ? (
             <div className="wallet-pill-identity">
-              <span className="wallet-pill-you">⚡ YOU</span>
+              <span className="wallet-pill-you">鈿?YOU</span>
               <span className="wallet-pill-you">@{username ?? 'anonymous'}</span>
               <CopyChip label="" value={userAddress} display={`${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`} />
             </div>
@@ -519,7 +560,7 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
             </>
           )}
           {walletConnected && (
-            <div className="wallet-pill-balance" title={showLowBalance ? 'Low balance — fund your wallet to continue playing' : undefined}>
+            <div className="wallet-pill-balance" title={showLowBalance ? 'Low balance 鈥?fund your wallet to continue playing' : undefined}>
               {balanceLoading ? (
                 <span className="wallet-balance-loading">-- XLM</span>
               ) : showZeroBalance ? (
@@ -532,16 +573,15 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
                   {fundWalletBusy ? (
                     <>
                       <Loader2 className="wallet-balance-fund-spinner" size={12} aria-hidden />
-                      Funding…
-                    </>
+                      Funding鈥?                    </>
                   ) : (
-                    '0 XLM — Fund Wallet'
+                    '0 XLM 鈥?Fund Wallet'
                   )}
                 </button>
               ) : (
                 <span
                   className={`wallet-balance-value ${showLowBalance ? 'wallet-balance-low' : ''}`}
-                  title={showLowBalance ? 'Low balance — fund your wallet to continue playing' : undefined}
+                  title={showLowBalance ? 'Low balance 鈥?fund your wallet to continue playing' : undefined}
                 >
                   {displayBalance.toFixed(3)} XLM
                   {showLowBalance && <AlertTriangle size={12} className="wallet-balance-warn-icon" aria-hidden />}
@@ -557,14 +597,14 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
         </div>
         {onOpenLeaderboard && (
           <button type="button" className="arena-nav-leaderboard" onClick={() => onOpenLeaderboard()}>
-            🏆 LEADERBOARD
+            馃弳 LEADERBOARD
           </button>
         )}
         </div>
       </div>
 
       {!arenaReady ? (
-        <PageLoading variant="viewport" title="Initializing arena" subtitle="Restoring wallet session and connecting to the network…" />
+        <PageLoading variant="viewport" title="Initializing arena" subtitle="Restoring wallet session and connecting to the network鈥? />
       ) : !walletConnected ? (
         <motion.section
           initial={{ opacity: 0 }}
@@ -577,8 +617,8 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
               <Loader2 className="entry-gate-spinner" size={28} aria-hidden />
               <p className="entry-gate-busy-text">
                 {walletGateBusy === 'create'
-                  ? 'Creating your passkey wallet…'
-                  : 'Waiting for passkey — connecting…'}
+                  ? 'Creating your passkey wallet鈥?
+                  : 'Waiting for passkey 鈥?connecting鈥?}
               </p>
               <p className="entry-gate-busy-hint">Complete the prompt in your browser or device</p>
             </div>
@@ -594,10 +634,9 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
               {walletGateBusy === 'create' ? (
                 <>
                   <Loader2 className="gate-btn-spinner" size={18} aria-hidden />
-                  Creating wallet…
-                </>
+                  Creating wallet鈥?                </>
               ) : (
-                '⚡ CREATE PASSKEY WALLET'
+                '鈿?CREATE PASSKEY WALLET'
               )}
             </button>
             <button
@@ -608,10 +647,9 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
               {walletGateBusy === 'connect' ? (
                 <>
                   <Loader2 className="gate-btn-spinner" size={18} aria-hidden />
-                  Connecting…
-                </>
+                  Connecting鈥?                </>
               ) : (
-                '↩ CONNECT EXISTING'
+                '鈫?CONNECT EXISTING'
               )}
             </button>
             {sessionRestored === false && <small>Restore previous session unavailable in this browser session.</small>}
@@ -637,7 +675,7 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
               </div>
               {activeSessionId && <CopyChip label="SESSION" value={activeSessionId} />}
               <div className="rail-card rail-card-points">
-                <span className="rail-points-label">⚓ YOUR POINTS</span>
+                <span className="rail-points-label">鈿?YOUR POINTS</span>
                 <div className="rail-points-row">
                   <strong className="rail-points-val">
                     {trackerPointsLoading ? '-- pts' : `${formatTrackerPointsRail(trackerPoints)} pts`}
@@ -654,7 +692,7 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
                   )}
                   {onOpenLeaderboard && (
                     <button type="button" className="rail-points-lb-btn" onClick={() => onOpenLeaderboard()} title="Leaderboard">
-                      🏆 LB
+                      馃弳 LB
                     </button>
                   )}
                 </div>
@@ -676,14 +714,14 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
                 }`}
               >
                 <div className="rail-fast-header">
-                  <span>⚡ FAST SIGN</span>
+                  <span>鈿?FAST SIGN</span>
                   {hasActiveSessionKey ? (
                     <span className="rail-fast-status rail-fast-status-on">
-                      ACTIVE <span className="rail-fast-dot">●</span>
+                      ACTIVE <span className="rail-fast-dot">鈼?/span>
                     </span>
                   ) : (
                     <span className="rail-fast-status rail-fast-status-off">
-                      INACTIVE <span className="rail-fast-dot rail-fast-dot-off">○</span>
+                      INACTIVE <span className="rail-fast-dot rail-fast-dot-off">鈼?/span>
                     </span>
                   )}
                 </div>
@@ -693,7 +731,7 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
                 )}
                 {hasActiveSessionKey ? (
                   <button type="button" className="rail-btn-clear-session" onClick={handleClearFastSigning}>
-                    ✕ Clear Session
+                    鉁?Clear Session
                   </button>
                 ) : (
                   <>
@@ -707,8 +745,7 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
                       {fastSigningBusy ? (
                         <>
                           <Loader2 className="rail-btn-spinner" size={12} aria-hidden />
-                          Creating session…
-                        </>
+                          Creating session鈥?                        </>
                       ) : (
                         '+ CREATE SESSION KEY'
                       )}
@@ -759,15 +796,27 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
       </AnimatePresence>
       {walletConnected && usernamePromptOpen && (
         <div className="username-dialog-backdrop" role="presentation">
-          <div className="username-dialog" role="dialog" aria-live="polite" aria-label="Choose username">
+          <div
+            className="username-dialog"
+            role="dialog"
+            aria-live="polite"
+            aria-label="Choose username"
+            onKeyDown={handleUsernameDialogKeyDown}
+          >
             <p className="username-dialog-title">Choose your captain username</p>
             <p className="username-dialog-subtitle">This is how other players find and challenge you.</p>
             <input
               value={usernameInput}
-              onChange={(e) => setUsernameInput(e.target.value)}
+              onChange={(e) => setUsernameInput(e.target.value.trimStart())}
               placeholder="lowercase letters, numbers, underscore"
               className="username-dialog-input"
+              maxLength={20}
+              aria-describedby="username-dialog-rules"
+              autoFocus
             />
+            <p id="username-dialog-rules" className="username-dialog-subtitle">
+              3-20 chars: lowercase a-z, numbers, and underscore only.
+            </p>
             <button
               className="btn-arena-primary username-dialog-save"
               disabled={usernameBusy}
