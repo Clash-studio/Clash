@@ -146,3 +146,134 @@ impl PointsTracker {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+
+    fn setup(env: &Env) -> (PointsTrackerClient<'_>, Address) {
+        let contract_id = env.register(PointsTracker, ());
+        let client = PointsTrackerClient::new(env, &contract_id);
+        let admin = Address::generate(env);
+        client.initialize(&admin);
+        (client, admin)
+    }
+
+    #[test]
+    fn initialize_sets_admin() {
+        let env = Env::default();
+        let (client, admin) = setup(&env);
+        assert_eq!(client.get_admin(), admin);
+    }
+
+    #[test]
+    #[should_panic(expected = "already initialized")]
+    fn initialize_twice_panics() {
+        let env = Env::default();
+        let (client, _admin) = setup(&env);
+        client.initialize(&Address::generate(&env));
+    }
+
+    #[test]
+    fn register_players_adds_both_to_leaderboard() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin) = setup(&env);
+
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        client.register_players(&a, &b);
+
+        let board = client.get_leaderboard();
+        assert_eq!(board.len(), 2);
+        assert_eq!(board.get(a).unwrap(), 0);
+        assert_eq!(board.get(b).unwrap(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "players must differ")]
+    fn register_players_rejects_same_address() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin) = setup(&env);
+
+        let a = Address::generate(&env);
+        client.register_players(&a, &a);
+    }
+
+    #[test]
+    fn record_result_awards_and_deducts_points() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin) = setup(&env);
+
+        let winner = Address::generate(&env);
+        let loser = Address::generate(&env);
+
+        // Give the loser a starting balance so the deduction is visible.
+        client.record_result(&loser, &winner); // loser: +30, winner: 0 (floored)
+        client.record_result(&winner, &loser); // winner: +30, loser: 30 - 15 = 15
+
+        assert_eq!(client.get_points(&winner), 30);
+        assert_eq!(client.get_points(&loser), 15);
+    }
+
+    #[test]
+    fn loser_points_floor_at_zero() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin) = setup(&env);
+
+        let winner = Address::generate(&env);
+        let loser = Address::generate(&env);
+
+        // Loser starts at 0, so a 15 point deduction must floor at 0, never go negative.
+        client.record_result(&winner, &loser);
+        assert_eq!(client.get_points(&loser), 0);
+
+        // A second loss keeps the loser at the floor.
+        client.record_result(&winner, &loser);
+        assert_eq!(client.get_points(&loser), 0);
+        assert_eq!(client.get_points(&winner), 60);
+    }
+
+    #[test]
+    #[should_panic(expected = "winner and loser must differ")]
+    fn record_result_rejects_same_address() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin) = setup(&env);
+
+        let a = Address::generate(&env);
+        client.record_result(&a, &a);
+    }
+
+    #[test]
+    fn record_result_requires_admin_auth() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, admin) = setup(&env);
+
+        let winner = Address::generate(&env);
+        let loser = Address::generate(&env);
+        client.record_result(&winner, &loser);
+
+        // The only authorization required for the call is the admin's.
+        let auths = env.auths();
+        assert_eq!(auths.len(), 1);
+        assert_eq!(auths.get(0).unwrap().0, admin);
+    }
+
+    #[test]
+    fn record_result_without_admin_auth_panics() {
+        let env = Env::default();
+        // Note: no mock_all_auths() here, so admin.require_auth() must fail.
+        let (client, _admin) = setup(&env);
+
+        let winner = Address::generate(&env);
+        let loser = Address::generate(&env);
+        let res = client.try_record_result(&winner, &loser);
+        assert!(res.is_err());
+    }
+}
