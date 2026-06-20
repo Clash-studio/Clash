@@ -5,10 +5,10 @@ import {
   getTxFeedSnapshot,
   subscribeTxFeed,
   updateTxFeedEntry,
+  explorerTxUrl,
   type OnChainTxEntry,
 } from '@/utils/onChainTxFeed';
 import { pollTransactionMeta } from '@/utils/sorobanTxMeta';
-import { NETWORK } from '@/utils/constants';
 import './OnChainTxPanel.css';
 
 function stroopsToXlmString(stroops: string | null): string {
@@ -41,11 +41,6 @@ function statusLabel(e: OnChainTxEntry): string {
     default:
       return e.status;
   }
-}
-
-function explorerTxUrl(hash: string): string {
-  const net = NETWORK === 'mainnet' ? 'public' : 'testnet';
-  return `https://stellar.expert/explorer/${net}/tx/${hash}`;
 }
 
 export function OnChainTxPanel() {
