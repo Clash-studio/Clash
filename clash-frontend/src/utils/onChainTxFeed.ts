@@ -3,6 +3,27 @@
  * Subscribers get notified when entries are added or updated by the poller.
  */
 
+import { NETWORK } from '@/utils/constants';
+
+/**
+ * stellar.expert path segment for the active network.
+ * NETWORK is 'testnet' | 'mainnet' (derived from the RPC URL in constants.ts);
+ * stellar.expert names mainnet 'public'.
+ */
+function explorerNetwork(): string {
+  return NETWORK === 'mainnet' ? 'public' : 'testnet';
+}
+
+/** stellar.expert link for a transaction hash, on the active network. */
+export function explorerTxUrl(hash: string): string {
+  return `https://stellar.expert/explorer/${explorerNetwork()}/tx/${hash}`;
+}
+
+/** stellar.expert link for a contract id, on the active network. */
+export function explorerContractUrl(contractId: string): string {
+  return `https://stellar.expert/explorer/${explorerNetwork()}/contract/${contractId}`;
+}
+
 export type TxFeedStatus = 'submitting' | 'pending' | 'success' | 'failed' | 'not_found';
 
 export type OnChainTxEntry = {
