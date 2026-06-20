@@ -1676,7 +1676,13 @@ export function ClashZkArena({
             <div className="field-with-unit">
               <input value={pointsStr} onChange={(e) => setPointsStr(e.target.value)} placeholder="0.1" />
               <span>XLM</span>
+              <div className="chip-row">
+                <button type="button" className="chip-btn" onClick={() => setPointsStr("0.1")}>0.1</button>
+                <button type="button" className="chip-btn" onClick={() => setPointsStr("0.5")}>0.5</button>
+                <button type="button" className="chip-btn" onClick={() => setPointsStr("1")}>1</button>
+              </div>
             </div>
+            
             <label>Opponent Username</label>
             <input value={opponentUsername} onChange={(e) => setOpponentUsername(e.target.value)} placeholder="captain_name" />
             {error && <p className="inline-error">{error}</p>}

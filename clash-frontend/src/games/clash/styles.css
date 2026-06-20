@@ -284,6 +284,27 @@
 .field-with-unit input { padding-right: 3rem; }
 .field-with-unit span { position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); color: #f5a623; font-size: 0.72rem; }
 
+/* Chip buttons for quick wager selections */
+.chip-btn {
+  margin-left: 0.4rem;
+  background: rgba(0,212,255,0.1);
+  border: 1px solid #00d4ff;
+  color: #00d4ff;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background 0.2s ease;
+}
+.chip-btn:hover:not(:disabled) {
+  background: rgba(0,212,255,0.3);
+}
+.chip-row {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
 .btn-arena-primary {
   width: 100%;
   background: #e5133a;
