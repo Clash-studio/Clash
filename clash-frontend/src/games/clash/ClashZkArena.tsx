@@ -104,6 +104,10 @@ function truncateAddr(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
+function formatPlayerLabel(address: string, username?: string | null) {
+  return username ? `@${username}` : truncateAddr(address);
+}
+
 function attackMeta(a: Attack) {
   return ATTACK_MOVES.find((m) => m.index === a) ?? ATTACK_MOVES[0];
 }
@@ -1707,20 +1711,25 @@ export function ClashZkArena({
           <section className="arena-card">
             <h3>Incoming Challenges</h3>
             {!challengesLoading && incomingPendingChallenges.length === 0 && <p className="mono dim">No active challenges</p>}
-            {incomingPendingChallenges.map((challenge) => (
-              <div key={`${challenge.challenge_id}-${challenge.challenger}`} className="status-pill warning" style={{ marginBottom: 10 }}>
-                <span>From {truncateAddr(challenge.challenger)} for {Number(challenge.points_wagered) / 10_0000000} XLM</span>
-                <button
-                  type="button"
-                  className="btn-arena-secondary"
-                  style={{ marginLeft: 8 }}
-                  disabled={busy}
-                  onClick={() => void handleAcceptChallenge(Number(challenge.challenge_id))}
-                >
-                  Accept
-                </button>
-              </div>
-            ))}
+            {incomingPendingChallenges.map((challenge) => {
+              const challengerUsername = challengeUsernames[challenge.challenger];
+              return (
+                <div key={`${challenge.challenge_id}-${challenge.challenger}`} className="status-pill warning" style={{ marginBottom: 10 }}>
+                  <span>
+                    From {formatPlayerLabel(challenge.challenger, challengerUsername)} for {Number(challenge.points_wagered) / 10_0000000} XLM
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-arena-secondary"
+                    style={{ marginLeft: 8 }}
+                    disabled={busy}
+                    onClick={() => void handleAcceptChallenge(Number(challenge.challenge_id))}
+                  >
+                    Accept
+                  </button>
+                </div>
+              );
+            })}
           </section>
           <section className="arena-card">
             <h3>Challenge History</h3>
@@ -1755,7 +1764,7 @@ export function ClashZkArena({
                   title={canEnterSession ? 'Enter this active challenge session' : 'Session unavailable'}
                 >
                   <div className="challenge-history-row">
-                    <strong>{isIncoming ? 'From' : 'To'} {otherUsername ? `@${otherUsername}` : truncateAddr(otherAddress)}</strong>
+                    <strong>{isIncoming ? 'From' : 'To'} {formatPlayerLabel(otherAddress, otherUsername)}</strong>
                     <span>
                       {challenge.is_completed ? (
                         <>
