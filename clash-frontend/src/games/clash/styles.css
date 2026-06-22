@@ -3110,3 +3110,61 @@ button:disabled {
     padding: 0 0.15rem;
   }
 }
+
+/* Challenge list tabs */
+.challenge-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.5rem;
+}
+.challenge-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #5a5a72;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.65rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.challenge-tab:hover:not(.challenge-tab--active) {
+  color: #c0c0d8;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.challenge-tab--active {
+  color: #00d4ff;
+  border-color: rgba(0, 212, 255, 0.65);
+  background: rgba(0, 212, 255, 0.06);
+}
+.challenge-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #8a8a9a;
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+.challenge-tab-badge--active {
+  background: rgba(0, 212, 255, 0.2);
+  color: #00d4ff;
+}
+.challenge-pending-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: #f5a623;
+  font-family: var(--font-mono);
+}
