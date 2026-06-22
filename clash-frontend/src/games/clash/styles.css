@@ -3055,3 +3055,31 @@ button:disabled {
     padding: 0 0.15rem;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .cinematic-battle-root *,
+  .cinematic-battle-root *::before,
+  .cinematic-battle-root *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .cinematic-battle-canvas--vignette,
+  .cinematic-confetti span,
+  .pirate-sprite,
+  .pirate-sprite--block-pulse,
+  .playback-narration-bar,
+  .exchange-flash-bar,
+  .cinematic-float-above,
+  .cinematic-round-banner--title,
+  .cinematic-move-card,
+  .cinematic-winner-overlay {
+    animation: none !important;
+  }
+
+  .cinematic-confetti {
+    display: none;
+  }
+}

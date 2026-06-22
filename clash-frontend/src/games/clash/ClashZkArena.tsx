@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, type Variants } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer-motion';
 import { Loader2, Lock, ShieldAlert } from 'lucide-react';
 import { Buffer } from 'buffer';
 import { NoirService, type ClashProofResult } from '@/utils/NoirService';
@@ -207,6 +207,22 @@ const TIMING = {
   BETWEEN_ROUNDS: 1800,
   WINNER_REVEAL_DELAY: 1200,
 } as const;
+
+const REDUCED_MOTION_TIMING: typeof TIMING = {
+  ROUND_TITLE_HOLD: 120,
+  ROUND_TITLE_FADEOUT: 0,
+  MOVE_REVEAL_DELAY: 0,
+  MOVE_REVEAL_ANIM: 0,
+  NARRATION_HOLD: 300,
+  NARRATION_FADEOUT: 0,
+  ATTACK_ANIM_DURATION: 0,
+  IMPACT_FLOAT_DURATION: 200,
+  EXCHANGE_FLASH_HOLD: 0,
+  HP_BAR_ANIM: 0,
+  BETWEEN_PLAYERS: 100,
+  BETWEEN_ROUNDS: 120,
+  WINNER_REVEAL_DELAY: 100,
+};
 
 function buildNarrationP1(tr: DetailedTurnResult, r: number): NarrationModel {
   const atk = attackMeta(tr.player1_move.attack);
@@ -513,24 +529,35 @@ function PirateCharacter({
   side,
   animation,
   accentColor,
+  reducedMotion = false,
 }: {
   side: 'left' | 'right';
   animation: SpriteAnim;
   accentColor: string;
+  reducedMotion?: boolean;
 }) {
   const attackX = side === 'right' ? [0, -30, 0] : [0, 30, 0];
-  const variants: Variants = {
-    idle: { y: [0, -4, 0], transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' } },
-    attack: { x: attackX, transition: { duration: 0.6, times: [0, 0.55, 1], ease: ['easeOut', 'easeIn'] } },
-    hit: {
-      opacity: [1, 0.2, 1, 0.2, 1, 0.2, 1],
-      x: [0, -8, 8, -4, 4, 0],
-      transition: { duration: 0.3 },
-    },
-    block: { scale: [1, 1.15, 1], transition: { duration: 0.25 } },
-    victory: { y: [0, -20, 0], transition: { duration: 0.8, repeat: Infinity, ease: 'easeInOut' } },
-    defeated: { rotate: 90, opacity: 0.3, y: 20, filter: 'grayscale(1)', transition: { duration: 0.6, ease: 'easeIn' } },
-  };
+  const variants: Variants = reducedMotion
+    ? {
+        idle: { x: 0, y: 0, opacity: 1, rotate: 0, scale: 1 },
+        attack: { x: 0, y: 0, opacity: 1, rotate: 0, scale: 1, transition: { duration: 0 } },
+        hit: { x: 0, y: 0, opacity: 1, rotate: 0, scale: 1, transition: { duration: 0 } },
+        block: { x: 0, y: 0, opacity: 1, rotate: 0, scale: 1, transition: { duration: 0 } },
+        victory: { x: 0, y: 0, opacity: 1, rotate: 0, scale: 1, transition: { duration: 0 } },
+        defeated: { rotate: 90, opacity: 0.3, y: 20, filter: 'grayscale(1)', transition: { duration: 0 } },
+      }
+    : {
+        idle: { y: [0, -4, 0], transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' } },
+        attack: { x: attackX, transition: { duration: 0.6, times: [0, 0.55, 1], ease: ['easeOut', 'easeIn'] } },
+        hit: {
+          opacity: [1, 0.2, 1, 0.2, 1, 0.2, 1],
+          x: [0, -8, 8, -4, 4, 0],
+          transition: { duration: 0.3 },
+        },
+        block: { scale: [1, 1.15, 1], transition: { duration: 0.25 } },
+        victory: { y: [0, -20, 0], transition: { duration: 0.8, repeat: Infinity, ease: 'easeInOut' } },
+        defeated: { rotate: 90, opacity: 0.3, y: 20, filter: 'grayscale(1)', transition: { duration: 0.6, ease: 'easeIn' } },
+      };
 
   const victoryGlow = animation === 'victory' ? { boxShadow: '0 0 30px rgba(255, 200, 0, 0.6)' } : {};
 
@@ -552,7 +579,7 @@ function PirateCharacter({
   );
 }
 
-function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, userAddress: string) {
+function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, userAddress: string, reducedMotion: boolean) {
   const [ui, setUi] = useState<BattlePlaybackUi>(() => ({
     round: 0,
     segment: 'idle',
@@ -583,6 +610,8 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
   useEffect(() => {
     if (!active || !gamePlayback?.turn_results?.length) return;
     const runId = ++runIdRef.current;
+    const timing = reducedMotion ? REDUCED_MOTION_TIMING : TIMING;
+    const cardPairDelay = reducedMotion ? 0 : 300;
     const timers: number[] = [];
     const q = (ms: number, fn: () => void) => {
       timers.push(
@@ -632,20 +661,20 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
           p2Anim: 'idle',
         }))
       );
-      acc += TIMING.ROUND_TITLE_HOLD;
+      acc += timing.ROUND_TITLE_HOLD;
 
       q(acc, () => setUi((s) => ({ ...s, showRoundTitle: false })));
-      acc += TIMING.ROUND_TITLE_FADEOUT + TIMING.MOVE_REVEAL_DELAY;
+      acc += timing.ROUND_TITLE_FADEOUT + timing.MOVE_REVEAL_DELAY;
 
       const p1CardT = acc;
       q(p1CardT, () => setUi((s) => ({ ...s, segment: 'p1Reveal', p1AtkCard: true, p1DefCard: false, p2AtkCard: false, p2DefCard: false })));
-      q(p1CardT + 300, () => setUi((s) => ({ ...s, p1DefCard: true })));
+      q(p1CardT + cardPairDelay, () => setUi((s) => ({ ...s, p1DefCard: true })));
 
       const n1 = buildNarrationP1(tr, r);
-      const narr1T = p1CardT + TIMING.MOVE_REVEAL_ANIM;
+      const narr1T = p1CardT + timing.MOVE_REVEAL_ANIM;
       q(narr1T, () => setUi((s) => ({ ...s, narration: n1 })));
-      q(narr1T + TIMING.NARRATION_HOLD, () => setUi((s) => ({ ...s, narration: null })));
-      acc = narr1T + TIMING.NARRATION_HOLD + TIMING.NARRATION_FADEOUT;
+      q(narr1T + timing.NARRATION_HOLD, () => setUi((s) => ({ ...s, narration: null })));
+      acc = narr1T + timing.NARRATION_HOLD + timing.NARRATION_FADEOUT;
 
       q(acc, () =>
         setUi((s) => ({
@@ -659,10 +688,10 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
           floatText: p2dmg > 0 ? `-${p2dmg}` : 'BLOCKED',
           floatTone: p2dmg > 0 ? 'crimson' : 'cyan',
           floatSide: isP1Local ? 'right' : 'left',
-          vignetteHit: p2dmg > 0,
+          vignetteHit: !reducedMotion && p2dmg > 0,
         }))
       );
-      acc += TIMING.ATTACK_ANIM_DURATION + TIMING.IMPACT_FLOAT_DURATION;
+      acc += timing.ATTACK_ANIM_DURATION + timing.IMPACT_FLOAT_DURATION;
 
       q(acc, () =>
         setUi((s) => ({
@@ -674,17 +703,17 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
           floatSide: null,
         }))
       );
-      acc += TIMING.BETWEEN_PLAYERS;
+      acc += timing.BETWEEN_PLAYERS;
 
       const p2CardT = acc;
       q(p2CardT, () => setUi((s) => ({ ...s, segment: 'p2Reveal', p2AtkCard: true, p2DefCard: false })));
-      q(p2CardT + 300, () => setUi((s) => ({ ...s, p2DefCard: true })));
+      q(p2CardT + cardPairDelay, () => setUi((s) => ({ ...s, p2DefCard: true })));
 
       const n2 = buildNarrationP2(tr, r);
-      const narr2T = p2CardT + TIMING.MOVE_REVEAL_ANIM;
+      const narr2T = p2CardT + timing.MOVE_REVEAL_ANIM;
       q(narr2T, () => setUi((s) => ({ ...s, narration: n2 })));
-      q(narr2T + TIMING.NARRATION_HOLD, () => setUi((s) => ({ ...s, narration: null })));
-      acc = narr2T + TIMING.NARRATION_HOLD + TIMING.NARRATION_FADEOUT;
+      q(narr2T + timing.NARRATION_HOLD, () => setUi((s) => ({ ...s, narration: null })));
+      acc = narr2T + timing.NARRATION_HOLD + timing.NARRATION_FADEOUT;
 
       q(acc, () =>
         setUi((s) => ({
@@ -698,10 +727,10 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
           floatText: p1dmg > 0 ? `-${p1dmg}` : 'BLOCKED',
           floatTone: p1dmg > 0 ? 'crimson' : 'cyan',
           floatSide: isP1Local ? 'left' : 'right',
-          vignetteHit: p1dmg > 0,
+          vignetteHit: !reducedMotion && p1dmg > 0,
         }))
       );
-      acc += TIMING.ATTACK_ANIM_DURATION + TIMING.IMPACT_FLOAT_DURATION;
+      acc += timing.ATTACK_ANIM_DURATION + timing.IMPACT_FLOAT_DURATION;
 
       q(acc, () =>
         setUi((s) => ({
@@ -714,8 +743,8 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
         }))
       );
 
-      q(acc, () => setUi((s) => ({ ...s, segment: 'exchange', exchangeFlash: true })));
-      acc += TIMING.EXCHANGE_FLASH_HOLD;
+      q(acc, () => setUi((s) => ({ ...s, segment: 'exchange', exchangeFlash: !reducedMotion })));
+      acc += timing.EXCHANGE_FLASH_HOLD;
 
       q(acc, () => setUi((s) => ({ ...s, exchangeFlash: false })));
 
@@ -736,9 +765,9 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
           floatSide: null,
         }))
       );
-      acc += TIMING.HP_BAR_ANIM;
+      acc += timing.HP_BAR_ANIM;
 
-      if (r < 2) acc += TIMING.BETWEEN_ROUNDS;
+      if (r < 2) acc += timing.BETWEEN_ROUNDS;
     };
 
     turns.slice(0, 3).forEach((tr, r) => scheduleRound(r, tr));
@@ -758,7 +787,7 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
         };
       })
     );
-    acc += TIMING.WINNER_REVEAL_DELAY;
+    acc += timing.WINNER_REVEAL_DELAY;
 
     q(acc, () => setUi((s) => ({ ...s, showEndTable: true })));
     acc += 500;
@@ -769,7 +798,7 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
       runIdRef.current++;
       timers.forEach((id) => clearTimeout(id));
     };
-  }, [active, gamePlayback, userAddress]);
+  }, [active, gamePlayback, reducedMotion, userAddress]);
 
   return { ui };
 }
@@ -869,6 +898,7 @@ export function ClashZkArena({
   onBattleResolved,
 }: Props) {
   const noir = useRef(new NoirService());
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const [phase, setPhase] = useState<ZkPhase>('create');
   const [sessionId, setSessionId] = useState(() => createRandomSessionId());
   const [gameState, setGameState] = useState<Game | null>(null);
@@ -909,7 +939,7 @@ export function ClashZkArena({
   const [gameStateSyncing, setGameStateSyncing] = useState(false);
   const wasWaitingForOppRevealRef = useRef(false);
 
-  const battlePlayback = useBattlePlayback(gamePlayback, phase === 'complete' && Boolean(gamePlayback), userAddress);
+  const battlePlayback = useBattlePlayback(gamePlayback, phase === 'complete' && Boolean(gamePlayback), userAddress, prefersReducedMotion);
 
   useEffect(() => {
     const id = window.setInterval(() => setPollTick((n) => n + 1), 1000);
@@ -2065,6 +2095,8 @@ export function ClashZkArena({
             const oppUsername = isP1Local ? gamePlayback.player2_username : gamePlayback.player1_username;
             const npTier = (hp: number) => (hp > 60 ? 'hi' : hp > 30 ? 'mid' : 'low');
             const narr = battlePlayback.ui.narration;
+            const cardInitial = prefersReducedMotion ? false : { scale: 0, opacity: 0 };
+            const cardTransition = prefersReducedMotion ? { duration: 0 } : { type: 'spring' as const, stiffness: 200, damping: 18 };
             return (
               <>
                 <AnimatePresence>
@@ -2101,7 +2133,7 @@ export function ClashZkArena({
                     <div className="cinematic-side cinematic-side--left">
                       <div className="cinematic-pirate-wrap cinematic-pirate-wrap--faceoff">
                         <div className="pirate-faceoff-scale" aria-hidden>
-                          <PirateCharacter side="left" animation={leftAnim} accentColor="#E5133A" />
+                          <PirateCharacter side="left" animation={leftAnim} accentColor="#E5133A" reducedMotion={prefersReducedMotion} />
                         </div>
                       </div>
                       <AnimatePresence>
@@ -2154,10 +2186,10 @@ export function ClashZkArena({
                             <motion.div
                               key={`c1-${battlePlayback.ui.round}`}
                               className="cinematic-move-card"
-                              initial={{ scale: 0, opacity: 0 }}
+                              initial={cardInitial}
                               animate={{ scale: 1, opacity: 1 }}
                               exit={{ opacity: 0 }}
-                              transition={{ type: 'spring', stiffness: 200, damping: 18 }}
+                              transition={cardTransition}
                             >
                               <span>{p1Atk.icon}</span>
                               <span>{p1Atk.name}</span>
@@ -2169,10 +2201,10 @@ export function ClashZkArena({
                             <motion.div
                               key={`d2-${battlePlayback.ui.round}`}
                               className="cinematic-move-card defense"
-                              initial={{ scale: 0, opacity: 0 }}
+                              initial={cardInitial}
                               animate={{ scale: 1, opacity: 1 }}
                               exit={{ opacity: 0 }}
-                              transition={{ type: 'spring', stiffness: 200, damping: 18 }}
+                              transition={cardTransition}
                             >
                               <span>{p2Def.icon}</span>
                               <span>{p2Def.label}</span>
@@ -2187,10 +2219,10 @@ export function ClashZkArena({
                             <motion.div
                               key={`c2-${battlePlayback.ui.round}`}
                               className="cinematic-move-card"
-                              initial={{ scale: 0, opacity: 0 }}
+                              initial={cardInitial}
                               animate={{ scale: 1, opacity: 1 }}
                               exit={{ opacity: 0 }}
-                              transition={{ type: 'spring', stiffness: 200, damping: 18 }}
+                              transition={cardTransition}
                             >
                               <span>{p2Atk.icon}</span>
                               <span>{p2Atk.name}</span>
@@ -2202,10 +2234,10 @@ export function ClashZkArena({
                             <motion.div
                               key={`d1-${battlePlayback.ui.round}`}
                               className="cinematic-move-card defense"
-                              initial={{ scale: 0, opacity: 0 }}
+                              initial={cardInitial}
                               animate={{ scale: 1, opacity: 1 }}
                               exit={{ opacity: 0 }}
-                              transition={{ type: 'spring', stiffness: 200, damping: 18 }}
+                              transition={cardTransition}
                             >
                               <span>{p1Def.icon}</span>
                               <span>{p1Def.label}</span>
@@ -2218,7 +2250,7 @@ export function ClashZkArena({
                     <div className="cinematic-side cinematic-side--right">
                       <div className="cinematic-pirate-wrap cinematic-pirate-wrap--faceoff">
                         <div className="pirate-faceoff-scale" aria-hidden>
-                          <PirateCharacter side="right" animation={rightAnim} accentColor="#00D4FF" />
+                          <PirateCharacter side="right" animation={rightAnim} accentColor="#00D4FF" reducedMotion={prefersReducedMotion} />
                         </div>
                       </div>
                       <AnimatePresence>
@@ -2274,11 +2306,13 @@ export function ClashZkArena({
                             👑
                           </motion.div>
                           <div className="cinematic-winner-title">VICTORY</div>
-                          <div className="cinematic-confetti">
-                            {Array.from({ length: 20 }).map((_, i) => (
-                              <span key={i} className={`cf-${i % 5}`} />
-                            ))}
-                          </div>
+                          {!prefersReducedMotion && (
+                            <div className="cinematic-confetti">
+                              {Array.from({ length: 20 }).map((_, i) => (
+                                <span key={i} className={`cf-${i % 5}`} />
+                              ))}
+                            </div>
+                          )}
                         </motion.div>
                       )}
                       {battlePlayback.ui.outcome === 'loss' && (
