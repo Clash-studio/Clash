@@ -197,7 +197,76 @@ fn test_winning_number_in_range() {
         .expect("Winning number should be set after reveal");
     assert!(
         winning_number >= 1 && winning_number <= 10,
-        "Winning number should be between 1 and 10"
+// ============================================================================
+// Forfeit Unrevealed Tests
+// ============================================================================
+
+use crate::{DataKey, Game, PlayerCommitment, MoveSequence};
+
+#[test]
+fn test_forfeit_unrevealed_success() {
+    // Setup environment and players
+    let (env, client, _hub, player1, player2) = setup_test();
+    let session_id = 30u32;
+    let points = 100_0000000;
+
+    // Start a new game
+    client.start_game(&session_id, &player1, &player2, &points, &points);
+
+    // Retrieve the game and manually set opponent (player2) commitment with past timestamp
+    let key = DataKey::Game(session_id);
+    let mut game: Game = env
+        .storage()
+        .temporary()
+        .get(&key)
+        .expect("Game should exist");
+
+    // Simulate player2 having committed earlier than timeout
+    let past_ts = env.ledger().timestamp() - (FORFEIT_TIMEOUT + 1);
+    game.has_player2_commitment = true;
+    game.player2_commitment = PlayerCommitment {
+        proof_id: BytesN::from_array(&env, &[0u8; 32]),
+        has_revealed: false,
+        moves: MoveSequence { moves: vec![&env] },
+        commit_timestamp: past_ts,
+    };
+    // Store modified game back
+    env.storage().temporary().set(&key, &game);
+
+    // Player1 calls forfeit
+    client.forfeit_unrevealed(&session_id, &player1);
+
+    // Verify game resolved in favor of player1
+    let final_game = client.get_game(&session_id);
+    assert_eq!(final_game.winner.unwrap(), player1);
+    assert!(final_game.has_battle_result);
+}
+
+#[test]
+fn test_forfeit_unrevealed_too_early() {
+    let (env, client, _hub, player1, player2) = setup_test();
+    let session_id = 31u32;
+    let points = 100_0000000;
+    client.start_game(&session_id, &player1, &player2, &points, &points);
+
+    // Set opponent commitment with recent timestamp (no timeout yet)
+    let key = DataKey::Game(session_id);
+    let mut game: Game = env.storage().temporary().get(&key).expect("Game should exist");
+    let recent_ts = env.ledger().timestamp();
+    game.has_player2_commitment = true;
+    game.player2_commitment = PlayerCommitment {
+        proof_id: BytesN::from_array(&env, &[0u8; 32]),
+        has_revealed: false,
+        moves: MoveSequence { moves: vec![&env] },
+        commit_timestamp: recent_ts,
+    };
+    env.storage().temporary().set(&key, &game);
+
+    // Attempt to forfeit before timeout should error
+    let result = client.try_forfeit_unrevealed(&session_id, &player1);
+    assert_number_guess_error(&result, Error::ForfeitTooEarly);
+}
+
     );
 }
 

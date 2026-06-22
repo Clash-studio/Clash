@@ -74,6 +74,7 @@ const COMBO_3_BONUS: i32 = 25;
 
 /// TTL for game storage (30 days in ledgers)
 const GAME_TTL_LEDGERS: u32 = 518_400;
+const FORFEIT_TIMEOUT: u64 = 24 * 60 * 60; // 24 hours in seconds
 
 /// TTL for challenges (7 days in ledgers)
 const CHALLENGE_TTL_LEDGERS: u32 = 120_960;
@@ -106,7 +107,7 @@ pub enum Error {
     AlreadyRevealed     = 17,
     CommitmentMismatch  = 18,
     InvalidPublicInputs = 19,
-    ChallengeAlreadyAccepted = 20,
+    ForfeitTooEarly = 20,
 }
 #[contracterror]
 #[repr(u32)]
@@ -158,6 +159,7 @@ pub struct PlayerCommitment {
     pub proof_id: BytesN<32>,
     pub has_revealed: bool,
     pub moves: MoveSequence,
+    pub commit_timestamp: u64,
 }
 
 #[contracttype]
@@ -756,9 +758,8 @@ impl ClashContract {
         let empty_commitment = PlayerCommitment {
             proof_id: BytesN::from_array(&env, &[0u8; 32]),
             has_revealed: false,
-            moves: MoveSequence {
-                moves: vec![&env],
-            },
+            moves: MoveSequence { moves: vec![&env] },
+            commit_timestamp: 0,
         };
 
         // Create empty battle result
@@ -830,6 +831,7 @@ pub fn commit_moves(
         proof_id: commitment_hash.clone(),
         has_revealed: false,
         moves: MoveSequence { moves: vec![&env] },
+        commit_timestamp: env.ledger().timestamp(),
     };
 
     if player == game.player1 {
@@ -969,6 +971,65 @@ pub fn reveal_moves(
         }
 
         Ok(battle_result)
+    }
+
+    /// Forfeit a game when opponent never reveals within timeout
+    pub fn forfeit_unrevealed(env: Env, session_id: u32, caller: Address) -> Result<(), Error> {
+        caller.require_auth();
+        let key = DataKey::Game(session_id);
+        let mut game: Game = env
+            .storage()
+            .temporary()
+            .get(&key)
+            .ok_or(Error::GameNotFound)?;
+
+        // Determine player role
+        let (is_caller_player1, opponent_commit, opponent_has_commit, opponent_addr) = if caller == game.player1 {
+            (true, &mut game.player2_commitment, game.has_player2_commitment, game.player2.clone())
+        } else if caller == game.player2 {
+            (false, &mut game.player1_commitment, game.has_player1_commitment, game.player1.clone())
+        } else {
+            return Err(Error::NotPlayer);
+        };
+
+        // Opponent must have committed and not revealed
+        if !opponent_has_commit {
+            return Err(Error::BothPlayersNotCommitted);
+        }
+        if opponent_commit.has_revealed {
+            return Err(Error::AlreadyRevealed);
+        }
+
+        // Check timeout
+        let current_ts = env.ledger().timestamp();
+        if current_ts < opponent_commit.commit_timestamp + FORFEIT_TIMEOUT {
+            return Err(Error::ForfeitTooEarly);
+        }
+
+        // Resolve in favor of caller
+        let winner = caller.clone();
+        let battle_result = BattleResult {
+            player1_hp: STARTING_HP,
+            player2_hp: STARTING_HP,
+            winner: Some(winner.clone()),
+            is_draw: false,
+            turn_results: vec![&env],
+        };
+        game.battle_result = battle_result.clone();
+        game.has_battle_result = true;
+        env.storage().temporary().set(&key, &game);
+
+        // Report to GameHub
+        let hub_addr: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::GameHubAddress)
+            .expect("GameHub address not set");
+        let hub = GameHubClient::new(&env, &hub_addr);
+        let player1_won = if is_caller_player1 { true } else { false };
+        hub.end_game(&session_id, &player1_won);
+        Self::mint_csh_reward(&env, winner);
+        Ok(())
     }
 
     /// Get game information
