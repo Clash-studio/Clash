@@ -290,6 +290,9 @@ pub enum DataKey {
 // Contract Definition
 // ============================================================================
 
+#[cfg(test)]
+mod decline_test;
+
 #[contract]
 pub struct ClashContract;
 
@@ -517,6 +520,60 @@ impl ClashContract {
         )?;
 
         Ok(())
+    }
+
+    /// Decline a pending challenge (by the challenged player) or cancel it (by the
+    /// challenger). The challenge is removed from storage and from both players'
+    /// challenge lists, so it disappears from the pending list for both sides.
+    ///
+    /// Only works on challenges that have not yet been accepted/completed. If a future
+    /// change (issue #1) locks the challenger's stake at `send_challenge` time, this is
+    /// the natural place to refund it before removal — today no stake is locked, so
+    /// there is nothing to return.
+    pub fn decline_challenge(
+        env: Env,
+        challenge_id: u32,
+        caller: Address,
+    ) -> Result<(), Error> {
+        caller.require_auth();
+
+        let challenge_key = DataKey::Challenge(challenge_id);
+        let challenge: Challenge = env.storage()
+            .temporary()
+            .get(&challenge_key)
+            .ok_or(Error::ChallengeNotFound)?;
+
+        // Only the challenged player (decline) or the challenger (cancel) may remove it.
+        if challenge.challenged != caller && challenge.challenger != caller {
+            return Err(Error::NotPlayer);
+        }
+
+        // A challenge that has already been accepted has started a game and cannot be
+        // declined; completed challenges are already terminal.
+        if challenge.is_accepted || challenge.is_completed {
+            return Err(Error::ChallengeAlreadyAccepted);
+        }
+
+        // Remove the challenge itself, then drop its id from both players' lists.
+        env.storage().temporary().remove(&challenge_key);
+        Self::remove_challenge_from_player(&env, &challenge.challenger, challenge_id);
+        Self::remove_challenge_from_player(&env, &challenge.challenged, challenge_id);
+
+        Ok(())
+    }
+
+    /// Remove a challenge id from a player's `PlayerChallenges` list (no-op if absent).
+    fn remove_challenge_from_player(env: &Env, player: &Address, challenge_id: u32) {
+        let key = DataKey::PlayerChallenges(player.clone());
+        if let Some(ids) = env.storage().persistent().get::<DataKey, Vec<u32>>(&key) {
+            let mut next = vec![env];
+            for id in ids.iter() {
+                if id != challenge_id {
+                    next.push_back(id);
+                }
+            }
+            env.storage().persistent().set(&key, &next);
+        }
     }
 
     /// Get all challenges for a player (sorted by status)
