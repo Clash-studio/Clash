@@ -64,20 +64,35 @@ function createAdminWriteClient(): PointsTrackerClient | null {
 }
 
 /**
+ * Outcome of the post-resolve leaderboard write:
+ * - `recorded`: admin-signed `record_result` was submitted successfully.
+ * - `skipped_no_admin`: no admin secret configured, so nothing was written (not an error).
+ * - `failed`: admin was configured but the write threw.
+ */
+export type PointsRecordStatus = 'recorded' | 'skipped_no_admin' | 'failed';
+
+/**
  * Admin-signed `record_result` (uses `VITE_DEV_POINTS_TRACKER_ADMIN_SECRET`).
  * Invoked from {@link ClashGameService.resolveBattleWithSmartAccount} after a successful resolve.
+ * Returns a status so the UI can surface a non-blocking notice when the leaderboard
+ * was not updated (e.g. admin secret missing) without affecting the resolve flow.
  */
-export async function submitPointsRecordAfterResolve(winner: string, loser: string): Promise<void> {
+export async function submitPointsRecordAfterResolve(
+  winner: string,
+  loser: string
+): Promise<PointsRecordStatus> {
+  const admin = createAdminWriteClient();
+  if (!admin) {
+    console.warn('[PointsService] record_result skipped: set VITE_DEV_POINTS_TRACKER_ADMIN_SECRET');
+    return 'skipped_no_admin';
+  }
   try {
-    const admin = createAdminWriteClient();
-    if (!admin) {
-      console.warn('[PointsService] record_result skipped: set VITE_DEV_POINTS_TRACKER_ADMIN_SECRET');
-      return;
-    }
     const tx = await admin.record_result({ winner, loser }, { ...DEFAULT_METHOD_OPTIONS, fee: 100 });
     await tx.signAndSend();
+    return 'recorded';
   } catch (e) {
     console.error('[PointsService] record_result failed:', e);
+    return 'failed';
   }
 }
 

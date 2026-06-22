@@ -292,6 +292,29 @@
 }
 .duel-invite-label { color: #8a8aa0; font-size: 0.78rem; }
 .duel-invite-label strong { color: #00d4ff; font-variant-numeric: tabular-nums; }
+.leaderboard-notice-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  background: rgba(245, 166, 35, 0.1);
+  border: 1px solid rgba(245, 166, 35, 0.35);
+  border-radius: 6px;
+  color: #f5a623;
+  font-size: 0.82rem;
+}
+.leaderboard-notice-dismiss {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #f5a623;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.1rem 0.3rem;
+}
+.leaderboard-notice-dismiss:hover { color: #ffd27a; }
 .field-with-unit { position: relative; margin-bottom: 0.6rem; }
 .field-with-unit input { padding-right: 3rem; }
 .field-with-unit span { position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); color: #f5a623; font-size: 0.72rem; }

@@ -18,7 +18,7 @@ import { Buffer } from 'buffer';
 import { signAndSendViaLaunchtube } from '@/utils/transactionHelper';
 import { calculateValidUntilLedger } from '@/utils/ledgerUtils';
 import { injectSignedAuthEntry } from '@/utils/authEntryUtils';
-import { submitPointsRecordAfterResolve } from '@/services/pointsService';
+import { submitPointsRecordAfterResolve, type PointsRecordStatus } from '@/services/pointsService';
 import { requestCache, createCacheKey } from '@/utils/requestCache';
 
 type ClientOptions = contract.ClientOptions;
@@ -1327,10 +1327,16 @@ export class ClashGameService {
     }
   }
 
+  /**
+   * Resolve the battle and record the leaderboard result.
+   * Returns the leaderboard write status so the UI can show a non-blocking notice
+   * when it was skipped/failed; `null` when no write applies (e.g. a draw). The
+   * leaderboard step never affects the resolve outcome.
+   */
   async resolveBattleWithSmartAccount(
     sessionId: number,
     smartAccountService: SmartAccountService
-  ): Promise<void> {
+  ): Promise<PointsRecordStatus | null> {
     try {
       await smartAccountService.ensureSigningReady();
       const tx = await this.baseClient.resolve_battle({ session_id: sessionId }, DEFAULT_METHOD_OPTIONS);
@@ -1349,12 +1355,14 @@ export class ClashGameService {
           if (wStr) {
             const loserAddr = wStr === pb.player1 ? pb.player2 : pb.player1;
             // Must complete before UI refreshes totals — otherwise get_points simulates stale state.
-            await submitPointsRecordAfterResolve(wStr, loserAddr);
+            return await submitPointsRecordAfterResolve(wStr, loserAddr);
           }
         }
       } catch (e) {
         console.warn('[resolveBattleWithSmartAccount] points tracker hook:', e);
+        return 'failed';
       }
+      return null;
     } catch (error) {
       console.error('❌ resolve_battle failed:', error);
       rethrowWithSmartAccountWasmHint(error, 'resolve_battle');
