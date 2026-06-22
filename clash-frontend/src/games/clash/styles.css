@@ -131,6 +131,33 @@
   box-sizing: border-box;
   margin-bottom: 0.65rem;
 }
+.username-dialog-input--error {
+  border-color: #e5133a !important;
+  box-shadow: 0 0 0 2px rgba(229, 19, 58, 0.25);
+}
+.username-dialog-error {
+  margin: -0.35rem 0 0.55rem;
+  font-size: 0.75rem;
+  color: #e5133a;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.username-dialog-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.7rem;
+  color: #5a5a72;
+}
+.username-dialog-hint kbd {
+  display: inline-block;
+  padding: 0.05em 0.35em;
+  border: 1px solid #3a3a4a;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  color: #a0a0b8;
+  line-height: 1.4;
+}
 .username-dialog-save {
   margin-top: 0;
 }
@@ -292,29 +319,6 @@
 }
 .duel-invite-label { color: #8a8aa0; font-size: 0.78rem; }
 .duel-invite-label strong { color: #00d4ff; font-variant-numeric: tabular-nums; }
-.leaderboard-notice-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  margin-top: 0.75rem;
-  padding: 0.6rem 0.8rem;
-  background: rgba(245, 166, 35, 0.1);
-  border: 1px solid rgba(245, 166, 35, 0.35);
-  border-radius: 6px;
-  color: #f5a623;
-  font-size: 0.82rem;
-}
-.leaderboard-notice-dismiss {
-  margin-left: auto;
-  background: transparent;
-  border: none;
-  color: #f5a623;
-  cursor: pointer;
-  font-size: 0.9rem;
-  line-height: 1;
-  padding: 0.1rem 0.3rem;
-}
-.leaderboard-notice-dismiss:hover { color: #ffd27a; }
 .field-with-unit { position: relative; margin-bottom: 0.6rem; }
 .field-with-unit input { padding-right: 3rem; }
 .field-with-unit span { position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); color: #f5a623; font-size: 0.72rem; }
@@ -2926,6 +2930,11 @@ button:disabled {
 }
 .leaderboard-addr-btn:hover {
   color: #00d4ff;
+}
+.leaderboard-addr-btn--copied {
+  color: #25d366;
+  font-weight: 700;
+  pointer-events: none;
 }
 .leaderboard-you-tag {
   color: #e5133a;
