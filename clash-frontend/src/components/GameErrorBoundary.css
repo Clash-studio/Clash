@@ -1,0 +1,91 @@
+.game-error-boundary {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+  min-height: calc(100vh - 12rem);
+  align-items: center;
+}
+
+.game-error-card {
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  padding: 2rem 1.75rem;
+  background: rgba(18, 18, 28, 0.78);
+  border: 1px solid rgba(255, 80, 80, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 0 32px rgba(255, 60, 60, 0.12);
+  color: #f0f0f5;
+}
+
+.game-error-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  margin-bottom: 0.75rem;
+}
+
+.game-error-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+}
+
+.game-error-message {
+  color: #a0a0b8;
+  line-height: 1.55;
+  margin: 0 0 1rem;
+}
+
+.game-error-detail {
+  text-align: left;
+  font-size: 12px;
+  color: #ff8a8a;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 80, 80, 0.2);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  margin: 0 0 1.25rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.game-error-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.game-error-btn {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.55rem 1rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #c0c0d0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.game-error-btn:hover {
+  border-color: rgba(0, 212, 255, 0.45);
+  color: #00d4ff;
+}
+
+.game-error-btn--primary {
+  border-color: rgba(0, 212, 255, 0.5);
+  color: #00d4ff;
+}
+
+.game-error-btn--primary:hover {
+  border-color: #00d4ff;
+  box-shadow: 0 0 16px rgba(0, 212, 255, 0.25);
+}
