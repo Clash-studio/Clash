@@ -884,6 +884,7 @@ export function ClashZkArena({
   const [error, setError] = useState<string | null>(null);
   const [criticalError, setCriticalError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [leaderboardNotice, setLeaderboardNotice] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [proofPulse, setProofPulse] = useState<'idle' | 'success' | 'failed'>('idle');
   const [burstTurn, setBurstTurn] = useState<number | null>(null);
@@ -1269,12 +1270,20 @@ export function ClashZkArena({
 
   const handleResolve = async () => {
     setBusy(true);
+    setLeaderboardNotice(null);
     try {
-      await clashService.resolveBattleWithSmartAccount(sessionId, smartAccountService);
+      const pointsStatus = await clashService.resolveBattleWithSmartAccount(sessionId, smartAccountService);
       const pb = await clashService.getGamePlayback(sessionId);
       if (pb) setGamePlayback(pb);
       setPhase('complete');
       setSuccess('Battle resolved.');
+      // Non-blocking notice when the leaderboard write was skipped/failed — the battle
+      // itself resolved fine regardless.
+      if (pointsStatus === 'skipped_no_admin') {
+        setLeaderboardNotice('Leaderboard not updated (admin not configured)');
+      } else if (pointsStatus === 'failed') {
+        setLeaderboardNotice('Leaderboard not updated (record failed)');
+      }
       onBattleResolved?.();
     } catch (e) {
       setCriticalError(e instanceof Error ? e.message : 'Resolve failed');
@@ -1298,6 +1307,7 @@ export function ClashZkArena({
     setProofMovesKey(null);
     setError(null);
     setSuccess(null);
+    setLeaderboardNotice(null);
     setCommitPhase('idle');
     setCommitTxError(null);
   };
@@ -2205,6 +2215,21 @@ export function ClashZkArena({
 
       {phase === 'complete' && (success || error) && (
         <p className={`status-pill ${error ? 'error' : 'success'}`}>{error ?? success}</p>
+      )}
+
+      {leaderboardNotice && (
+        <div className="leaderboard-notice-banner" role="status">
+          <span aria-hidden>ⓘ</span>
+          <span>{leaderboardNotice}</span>
+          <button
+            type="button"
+            className="leaderboard-notice-dismiss"
+            onClick={() => setLeaderboardNotice(null)}
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
       )}
     </div>
   );
