@@ -13,7 +13,7 @@ import { recordSessionLoadActivity } from '@/utils/onChainTxFeed';
 import { CopyChip } from './components/CopyChip';
 import { buildInviteLink, readSessionParam } from './inviteLink';
 import { CLASH_CONTRACT, NETWORK } from '@/utils/constants';
-import { registerDuelParticipants } from '@/services/pointsService';
+import { registerDuelParticipants, leaderboardNoticeForStatus } from '@/services/pointsService';
 import { ChallengePanel } from './ChallengePanel';
 
 type ZkPhase = 'create' | 'commit' | 'waiting_reveal' | 'reveal' | 'resolve' | 'complete';
@@ -1279,11 +1279,7 @@ export function ClashZkArena({
       setSuccess('Battle resolved.');
       // Non-blocking notice when the leaderboard write was skipped/failed — the battle
       // itself resolved fine regardless.
-      if (pointsStatus === 'skipped_no_admin') {
-        setLeaderboardNotice('Leaderboard not updated (admin not configured)');
-      } else if (pointsStatus === 'failed') {
-        setLeaderboardNotice('Leaderboard not updated (record failed)');
-      }
+      setLeaderboardNotice(leaderboardNoticeForStatus(pointsStatus));
       onBattleResolved?.();
     } catch (e) {
       setCriticalError(e instanceof Error ? e.message : 'Resolve failed');
