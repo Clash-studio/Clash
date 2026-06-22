@@ -19,8 +19,12 @@ import { signAndSendViaLaunchtube } from '@/utils/transactionHelper';
 import { calculateValidUntilLedger } from '@/utils/ledgerUtils';
 import { injectSignedAuthEntry } from '@/utils/authEntryUtils';
 import { submitPointsRecordAfterResolve } from '@/services/pointsService';
+import { requestCache, createCacheKey } from '@/utils/requestCache';
 
 type ClientOptions = contract.ClientOptions;
+
+/** Dedupe window for username <-> address lookups (ms). Keeps concurrent reads to one RPC. */
+const USERNAME_LOOKUP_TTL = 5000;
 
 function unwrapResultU32(res: Result<u32> | null | undefined): number {
   if (res == null) {
@@ -150,6 +154,7 @@ export class ClashGameService {
         throw new Error(`Transaction failed: ${errorMessage}`);
       }
 
+      this.invalidateUsernameCache(caller, username);
       return sentTx.result;
     } catch (err) {
       if (err instanceof Error && err.message.includes('Transaction failed!')) {
@@ -159,26 +164,44 @@ export class ClashGameService {
     }
   }
 
+  /** Drop cached username/address lookups after a successful set_username so reads reflect the new mapping. */
+  private invalidateUsernameCache(address: string, username: string): void {
+    requestCache.invalidate(createCacheKey(this.contractId, 'get_username', address));
+    requestCache.invalidate(createCacheKey(this.contractId, 'get_address_by_username', username));
+  }
+
   async getUsername(address: string): Promise<string | null> {
-    try {
-      const tx = await this.baseClient.get_username({ address });
-      const result = await tx.simulate();
-      return result.result || null;
-    } catch (err) {
-      console.log('[getUsername] Error querying username:', err);
-      return null;
-    }
+    return requestCache.dedupe(
+      createCacheKey(this.contractId, 'get_username', address),
+      async () => {
+        try {
+          const tx = await this.baseClient.get_username({ address });
+          const result = await tx.simulate();
+          return result.result || null;
+        } catch (err) {
+          console.log('[getUsername] Error querying username:', err);
+          return null;
+        }
+      },
+      USERNAME_LOOKUP_TTL
+    );
   }
 
   async getAddressByUsername(username: string): Promise<string | null> {
-    try {
-      const tx = await this.baseClient.get_address_by_username({ username });
-      const result = await tx.simulate();
-      return result.result || null;
-    } catch (err) {
-      console.log('[getAddressByUsername] Error querying address:', err);
-      return null;
-    }
+    return requestCache.dedupe(
+      createCacheKey(this.contractId, 'get_address_by_username', username),
+      async () => {
+        try {
+          const tx = await this.baseClient.get_address_by_username({ username });
+          const result = await tx.simulate();
+          return result.result || null;
+        } catch (err) {
+          console.log('[getAddressByUsername] Error querying address:', err);
+          return null;
+        }
+      },
+      USERNAME_LOOKUP_TTL
+    );
   }
 
   async getCshBalance(player: string): Promise<bigint> {
@@ -317,6 +340,7 @@ export class ClashGameService {
         clashContractId: this.contractId,
       });
       assertSmartAccountSubmitResult(result, 'set_username');
+      this.invalidateUsernameCache(caller, username);
     } catch (error) {
       console.error('❌ set_username failed:', error);
       rethrowWithSmartAccountWasmHint(error, 'set_username');
