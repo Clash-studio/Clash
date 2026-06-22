@@ -1707,20 +1707,27 @@ export function ClashZkArena({
           <section className="arena-card">
             <h3>Incoming Challenges</h3>
             {!challengesLoading && incomingPendingChallenges.length === 0 && <p className="mono dim">No active challenges</p>}
-            {incomingPendingChallenges.map((challenge) => (
-              <div key={`${challenge.challenge_id}-${challenge.challenger}`} className="status-pill warning" style={{ marginBottom: 10 }}>
-                <span>From {truncateAddr(challenge.challenger)} for {Number(challenge.points_wagered) / 10_0000000} XLM</span>
-                <button
-                  type="button"
-                  className="btn-arena-secondary"
-                  style={{ marginLeft: 8 }}
-                  disabled={busy}
-                  onClick={() => void handleAcceptChallenge(Number(challenge.challenge_id))}
-                >
-                  Accept
-                </button>
-              </div>
-            ))}
+            {incomingPendingChallenges.map((challenge) => {
+              const challengerUsername = challengeUsernames[challenge.challenger];
+              const challengerLabel = challengerUsername
+                ? `@${challengerUsername}`
+                : truncateAddr(challenge.challenger);
+
+              return (
+                <div key={`${challenge.challenge_id}-${challenge.challenger}`} className="status-pill warning" style={{ marginBottom: 10 }}>
+                  <span>From {challengerLabel} for {Number(challenge.points_wagered) / 10_0000000} XLM</span>
+                  <button
+                    type="button"
+                    className="btn-arena-secondary"
+                    style={{ marginLeft: 8 }}
+                    disabled={busy}
+                    onClick={() => void handleAcceptChallenge(Number(challenge.challenge_id))}
+                  >
+                    Accept
+                  </button>
+                </div>
+              );
+            })}
           </section>
           <section className="arena-card">
             <h3>Challenge History</h3>
