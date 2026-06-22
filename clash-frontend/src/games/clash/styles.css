@@ -131,6 +131,33 @@
   box-sizing: border-box;
   margin-bottom: 0.65rem;
 }
+.username-dialog-input--error {
+  border-color: #e5133a !important;
+  box-shadow: 0 0 0 2px rgba(229, 19, 58, 0.25);
+}
+.username-dialog-error {
+  margin: -0.35rem 0 0.55rem;
+  font-size: 0.75rem;
+  color: #e5133a;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.username-dialog-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.7rem;
+  color: #5a5a72;
+}
+.username-dialog-hint kbd {
+  display: inline-block;
+  padding: 0.05em 0.35em;
+  border: 1px solid #3a3a4a;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  color: #a0a0b8;
+  line-height: 1.4;
+}
 .username-dialog-save {
   margin-top: 0;
 }

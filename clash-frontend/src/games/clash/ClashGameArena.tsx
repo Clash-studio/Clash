@@ -422,11 +422,29 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
     setCshBalance(0n);
   };
 
+  /**
+   * Mirror the contract's validate_username_format + length + reserved checks.
+   * Returns an error string, or null when the value is valid.
+   */
+  const validateUsernameFormat = (value: string): string | null => {
+    if (value.length < 3) return 'Username must be at least 3 characters.';
+    if (value.length > 20) return 'Username must be 20 characters or fewer.';
+    if (!/^[a-z0-9_]+$/.test(value))
+      return 'Only lowercase letters (a–z), numbers, and underscores are allowed.';
+    const RESERVED = ['admin', 'system', 'moderator', 'support'];
+    if (RESERVED.includes(value)) return `"${value}" is a reserved name. Please choose another.`;
+    return null;
+  };
+
+  const usernameValidationError =
+    usernameInput.trim() === '' ? null : validateUsernameFormat(usernameInput.trim().toLowerCase());
+
   const handleSaveUsername = async () => {
     if (!userAddress) return;
     const normalized = usernameInput.trim().toLowerCase();
-    if (normalized.length < 3) {
-      setError('Username must be at least 3 characters');
+    const formatError = validateUsernameFormat(normalized);
+    if (formatError) {
+      setError(formatError);
       return;
     }
     setUsernameBusy(true);
@@ -446,6 +464,19 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
       setError(message);
     } finally {
       setUsernameBusy(false);
+    }
+  };
+
+  const handleUsernameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !usernameBusy && !usernameValidationError && usernameInput.trim().length >= 3) {
+      void handleSaveUsername();
+    }
+    if (e.key === 'Escape') {
+      // Only close if a username is already set (i.e. not first-time mandatory setup)
+      if (username !== null) {
+        setUsernamePromptOpen(false);
+        setUsernameInput('');
+      }
     }
   };
 
@@ -759,18 +790,42 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
       </AnimatePresence>
       {walletConnected && usernamePromptOpen && (
         <div className="username-dialog-backdrop" role="presentation">
-          <div className="username-dialog" role="dialog" aria-live="polite" aria-label="Choose username">
+          <div
+            className="username-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Choose username"
+            aria-describedby="username-dialog-subtitle"
+          >
             <p className="username-dialog-title">Choose your captain username</p>
-            <p className="username-dialog-subtitle">This is how other players find and challenge you.</p>
+            <p className="username-dialog-subtitle" id="username-dialog-subtitle">
+              This is how other players find and challenge you.
+            </p>
             <input
+              autoFocus
               value={usernameInput}
               onChange={(e) => setUsernameInput(e.target.value)}
+              onKeyDown={handleUsernameKeyDown}
               placeholder="lowercase letters, numbers, underscore"
-              className="username-dialog-input"
+              className={`username-dialog-input${usernameValidationError ? ' username-dialog-input--error' : ''}`}
+              maxLength={20}
+              aria-invalid={usernameValidationError !== null}
+              aria-describedby={usernameValidationError ? 'username-dialog-error' : undefined}
+              spellCheck={false}
+              autoComplete="off"
             />
+            {usernameValidationError && (
+              <p className="username-dialog-error" id="username-dialog-error" role="alert">
+                {usernameValidationError}
+              </p>
+            )}
+            <p className="username-dialog-hint">
+              {usernameInput.trim().length}/20 · a–z, 0–9, _ · Press <kbd>Enter</kbd> to save
+              {username !== null && <> · <kbd>Esc</kbd> to cancel</>}
+            </p>
             <button
               className="btn-arena-primary username-dialog-save"
-              disabled={usernameBusy}
+              disabled={usernameBusy || Boolean(usernameValidationError) || usernameInput.trim().length < 3}
               onClick={() => void handleSaveUsername()}
             >
               {usernameBusy ? 'Saving...' : 'Save Username'}
