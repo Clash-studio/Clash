@@ -5,7 +5,7 @@ import { Buffer } from 'buffer';
 import { NoirService, type ClashProofResult } from '@/utils/NoirService';
 import type { ClashGameService } from './clashService';
 import type { SmartAccountService } from './smartAccountService';
-import type { Challenge, DetailedTurnResult, Game, GamePlayback, Move } from './bindings';
+import type { DetailedTurnResult, Game, GamePlayback, Move } from './bindings';
 import { Attack, Defense } from './bindings';
 import type { SelectedMove } from '@/components/Clashgamecomponents';
 import { createEmptyMoves } from '@/components/Clashgamecomponents';
@@ -13,6 +13,7 @@ import { recordSessionLoadActivity } from '@/utils/onChainTxFeed';
 import { CopyChip } from './components/CopyChip';
 import { CLASH_CONTRACT, NETWORK } from '@/utils/constants';
 import { registerDuelParticipants } from '@/services/pointsService';
+import { ChallengePanel } from './ChallengePanel';
 
 type ZkPhase = 'create' | 'commit' | 'waiting_reveal' | 'reveal' | 'resolve' | 'complete';
 const STEP_KEYS = ['moves', 'proof', 'commit', 'reveal', 'resolve'] as const;
@@ -873,24 +874,12 @@ export function ClashZkArena({
   const [sessionId, setSessionId] = useState(() => createRandomSessionId());
   const [gameState, setGameState] = useState<Game | null>(null);
   const [gamePlayback, setGamePlayback] = useState<GamePlayback | null>(null);
-  const [opponentUsername, setOpponentUsername] = useState('');
-  const [allChallenges, setAllChallenges] = useState<{
-    active: Challenge[];
-    completed: Challenge[];
-    expired: Challenge[];
-  }>({ active: [], completed: [], expired: [] });
-  const [challengeUsernames, setChallengeUsernames] = useState<Record<string, string | null>>({});
-  const [challengeOutcomes, setChallengeOutcomes] = useState<Record<number, 'win' | 'loss' | 'draw' | 'unknown'>>({});
-  const [challengesLoading, setChallengesLoading] = useState(false);
-  const [pointsStr, setPointsStr] = useState(DEFAULT_POINTS);
   const [loadSessionId, setLoadSessionId] = useState('');
   const [selectedMoves, setSelectedMoves] = useState<SelectedMove[]>(() => createEmptyMoves());
   const [storedPublicInputs, setStoredPublicInputs] = useState<Uint8Array | null>(null);
   const [proofBundle, setProofBundle] = useState<ClashProofResult | null>(null);
   const [proofMovesKey, setProofMovesKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  /** True only while `handleStartGame` is awaiting (for START DUEL button spinner). */
-  const [startingDuel, setStartingDuel] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [criticalError, setCriticalError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -1045,109 +1034,6 @@ export function ClashZkArena({
     }
   }, [selectedMoves, sessionId, userAddress]);
 
-  const handleStartGame = async () => {
-    setError(null);
-    setSuccess(null);
-    const pts = parsePoints(pointsStr);
-    if (!pts || pts <= 0n) {
-      setError('Enter a valid points amount');
-      return;
-    }
-    if (!opponentUsername.trim()) {
-      setError('Enter opponent username');
-      return;
-    }
-    setBusy(true);
-    setStartingDuel(true);
-    try {
-      const targetAddress = await clashService.getAddressByUsername(opponentUsername.trim().toLowerCase());
-      if (!targetAddress) {
-        setError('Username not found');
-        return;
-      }
-      if (targetAddress === userAddress) {
-        setError('Cannot challenge yourself');
-        return;
-      }
-      await clashService.sendChallengeWithSmartAccount(
-        userAddress,
-        targetAddress,
-        pts,
-        smartAccountService
-      );
-      setSuccess(`Challenge sent to @${opponentUsername.trim().toLowerCase()}`);
-    } catch (e) {
-      setCriticalError(e instanceof Error ? e.message : 'Failed to start game');
-    } finally {
-      setBusy(false);
-      setStartingDuel(false);
-    }
-  };
-
-  const loadChallenges = useCallback(async () => {
-    setChallengesLoading(true);
-    try {
-      const res = await clashService.getPlayerChallenges(userAddress);
-      setAllChallenges({
-        active: res.active,
-        completed: res.completed,
-        expired: res.expired,
-      });
-      const challengeAddresses = new Set<string>();
-      for (const challenge of [...res.active, ...res.completed, ...res.expired]) {
-        if (challenge.challenger) challengeAddresses.add(challenge.challenger);
-        if (challenge.challenged) challengeAddresses.add(challenge.challenged);
-      }
-      if (challengeAddresses.size > 0) {
-        const usernames = await Promise.all(
-          Array.from(challengeAddresses).map(async (address) => {
-            try {
-              const name = await clashService.getUsername(address);
-              return [address, name] as const;
-            } catch {
-              return [address, null] as const;
-            }
-          })
-        );
-        setChallengeUsernames((prev) => ({ ...prev, ...Object.fromEntries(usernames) }));
-      }
-      const completedSessionIds = Array.from(
-        new Set(
-          res.completed
-            .map((challenge) => (challenge.session_id == null ? null : Number(challenge.session_id)))
-            .filter((sid): sid is number => sid !== null && sid > 0)
-        )
-      );
-      const missingOutcomes = completedSessionIds.filter((sid) => challengeOutcomes[sid] === undefined);
-      if (missingOutcomes.length > 0) {
-        const outcomes = await Promise.all(
-          missingOutcomes.map(async (sid) => {
-            try {
-              const playback = await clashService.getGamePlayback(sid);
-              if (!playback) return [sid, 'unknown'] as const;
-              if (playback.is_draw) return [sid, 'draw'] as const;
-              const winner = playback.winner?.toString?.() ?? '';
-              if (!winner) return [sid, 'unknown'] as const;
-              return [sid, winner === userAddress ? 'win' : 'loss'] as const;
-            } catch {
-              return [sid, 'unknown'] as const;
-            }
-          })
-        );
-        setChallengeOutcomes((prev) => ({ ...prev, ...Object.fromEntries(outcomes) }));
-      }
-    } finally {
-      setChallengesLoading(false);
-    }
-  }, [challengeOutcomes, clashService, userAddress]);
-
-  useEffect(() => {
-    if (phase !== 'create') return;
-    void loadChallenges();
-    const id = window.setInterval(() => void loadChallenges(), 8000);
-    return () => window.clearInterval(id);
-  }, [phase, loadChallenges]);
-
   const handleAcceptChallenge = async (challengeId: number) => {
     setBusy(true);
     try {
@@ -1160,7 +1046,6 @@ export function ClashZkArena({
       }
       setPhase('commit');
       setSuccess('Challenge accepted. Duel started.');
-      await loadChallenges();
     } catch (e) {
       setCriticalError(e instanceof Error ? e.message : 'Failed to accept challenge');
     } finally {
@@ -1519,14 +1404,6 @@ export function ClashZkArena({
     .join(' ');
 
   const explorerHref = stellarExplorerContractUrl(CLASH_CONTRACT || '');
-  const sortedChallenges = useMemo(
-    () => [...allChallenges.active, ...allChallenges.completed, ...allChallenges.expired].sort((a, b) => Number(b.created_at) - Number(a.created_at)),
-    [allChallenges]
-  );
-  const incomingPendingChallenges = useMemo(
-    () => allChallenges.active.filter((c) => c.challenged === userAddress && !c.is_accepted),
-    [allChallenges.active, userAddress]
-  );
 
   const finishOnboardingSeen = () => {
     try {
@@ -1670,126 +1547,18 @@ export function ClashZkArena({
 
       {phase === 'create' && (
         <motion.div initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="duel-setup-grid">
-          <section className="arena-card">
-            <h3>Challenge by Username</h3>
-            <label>Stake / Points</label>
-            <div className="field-with-unit">
-              <input value={pointsStr} onChange={(e) => setPointsStr(e.target.value)} placeholder="0.1" />
-              <span>XLM</span>
-              <div className="chip-row">
-                <button type="button" className="chip-btn" onClick={() => setPointsStr("0.1")}>0.1</button>
-                <button type="button" className="chip-btn" onClick={() => setPointsStr("0.5")}>0.5</button>
-                <button type="button" className="chip-btn" onClick={() => setPointsStr("1")}>1</button>
-              </div>
-            </div>
-            
-            <label>Opponent Username</label>
-            <input value={opponentUsername} onChange={(e) => setOpponentUsername(e.target.value)} placeholder="captain_name" />
-            {error && <p className="inline-error">{error}</p>}
-            <button
-              type="button"
-              className={`btn-arena-primary ${startingDuel ? 'btn-arena-primary--loading' : ''}`}
-              disabled={busy}
-              onClick={() => void handleStartGame()}
-              aria-busy={startingDuel}
-              aria-label={startingDuel ? 'Starting duel' : 'Start duel'}
-            >
-              {startingDuel ? (
-                <Loader2 className="start-duel-btn-spinner" size={22} aria-hidden />
-              ) : (
-                '⚔ SEND CHALLENGE'
-              )}
-            </button>
-            <div className="mono dim" style={{ marginTop: 10 }}>
-              Game starts only when opponent accepts.
-            </div>
-          </section>
-          <section className="arena-card">
-            <h3>Incoming Challenges</h3>
-            {!challengesLoading && incomingPendingChallenges.length === 0 && <p className="mono dim">No active challenges</p>}
-            {incomingPendingChallenges.map((challenge) => (
-              <div key={`${challenge.challenge_id}-${challenge.challenger}`} className="status-pill warning" style={{ marginBottom: 10 }}>
-                <span>From {truncateAddr(challenge.challenger)} for {Number(challenge.points_wagered) / 10_0000000} XLM</span>
-                <button
-                  type="button"
-                  className="btn-arena-secondary"
-                  style={{ marginLeft: 8 }}
-                  disabled={busy}
-                  onClick={() => void handleAcceptChallenge(Number(challenge.challenge_id))}
-                >
-                  Accept
-                </button>
-              </div>
-            ))}
-          </section>
-          <section className="arena-card">
-            <h3>Challenge History</h3>
-            {!challengesLoading && sortedChallenges.length === 0 && <p className="mono dim">No challenges yet</p>}
-            {sortedChallenges.map((challenge) => {
-              const isIncoming = challenge.challenged === userAddress;
-              const otherAddress = isIncoming ? challenge.challenger : challenge.challenged;
-              const otherUsername = challengeUsernames[otherAddress];
-              const status = challenge.is_accepted ? 'Accepted' : challenge.is_completed ? 'Completed' : 'Pending';
-              const statusClass = challenge.is_accepted ? 'success' : challenge.is_completed ? 'warning' : 'warning';
-              const sessionId = challenge.session_id == null ? null : Number(challenge.session_id);
-              const canEnterSession = challenge.is_accepted && !challenge.is_completed && sessionId !== null;
-              const completedOutcome = sessionId != null ? challengeOutcomes[sessionId] : undefined;
-              const concludedLabel = completedOutcome === 'win'
-                ? 'Won'
-                : completedOutcome === 'loss'
-                  ? 'Lost'
-                  : completedOutcome === 'draw'
-                    ? 'Draw'
-                    : 'Concluded';
-              return (
-                <button
-                  key={`history-${challenge.challenge_id}`}
-                  type="button"
-                  className={`status-pill ${statusClass} challenge-history-item ${canEnterSession ? 'challenge-history-item--link' : ''}`}
-                  onClick={() => {
-                    if (canEnterSession && sessionId !== null) {
-                      void openSessionFromHistory(sessionId);
-                    }
-                  }}
-                  disabled={busy || !canEnterSession}
-                  title={canEnterSession ? 'Enter this active challenge session' : 'Session unavailable'}
-                >
-                  <div className="challenge-history-row">
-                    <strong>{isIncoming ? 'From' : 'To'} {otherUsername ? `@${otherUsername}` : truncateAddr(otherAddress)}</strong>
-                    <span>
-                      {challenge.is_completed ? (
-                        <>
-                          Concluded{' '}
-                          <span
-                            className={`challenge-history-outcome ${
-                              completedOutcome === 'win'
-                                ? 'challenge-history-outcome--win'
-                                : completedOutcome === 'loss'
-                                  ? 'challenge-history-outcome--loss'
-                                  : completedOutcome === 'draw'
-                                    ? 'challenge-history-outcome--draw'
-                                    : ''
-                            }`}
-                          >
-                            {concludedLabel}
-                          </span>
-                        </>
-                      ) : canEnterSession ? (
-                        `${status} · Enter`
-                      ) : (
-                        status
-                      )}
-                    </span>
-                  </div>
-                  <div className="challenge-history-meta">
-                    <span>Wager: {Number(challenge.points_wagered) / 10_0000000} XLM</span>
-                    <span>ID: {Number(challenge.challenge_id)}</span>
-                    <span>Session: {sessionId === null ? '—' : sessionId}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </section>
+          <ChallengePanel
+            userAddress={userAddress}
+            clashService={clashService}
+            smartAccountService={smartAccountService}
+            busy={busy}
+            setBusy={setBusy}
+            setError={setError}
+            setSuccess={setSuccess}
+            setCriticalError={setCriticalError}
+            onAcceptChallenge={handleAcceptChallenge}
+            onEnterSession={openSessionFromHistory}
+          />
           <section className="arena-card">
             <h3>Rejoin Arena</h3>
             <label>Session ID</label>
