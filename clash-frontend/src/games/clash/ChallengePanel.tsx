@@ -168,14 +168,29 @@ export function ChallengePanel({
     return () => clearInterval(id);
   }, [loadChallenges]);
 
-  const sortedChallenges = useMemo(
-    () => [...allChallenges.active, ...allChallenges.completed, ...allChallenges.expired].sort((a, b) => Number(b.created_at) - Number(a.created_at)),
-    [allChallenges]
+  const [challengeTab, setChallengeTab] = useState<'pending' | 'active' | 'history'>('pending');
+
+  // Pending: not yet accepted (both incoming and outgoing)
+  const pendingChallenges = useMemo(
+    () => allChallenges.active
+      .filter((c) => !c.is_accepted)
+      .sort((a, b) => Number(b.created_at) - Number(a.created_at)),
+    [allChallenges.active]
   );
 
-  const incomingPendingChallenges = useMemo(
-    () => allChallenges.active.filter((c) => c.challenged === userAddress && !c.is_accepted),
-    [allChallenges.active, userAddress]
+  // Active: accepted but not completed — sessions you can enter
+  const activeChallenges = useMemo(
+    () => allChallenges.active
+      .filter((c) => c.is_accepted && !c.is_completed)
+      .sort((a, b) => Number(b.created_at) - Number(a.created_at)),
+    [allChallenges.active]
+  );
+
+  // History: completed + expired
+  const historyChallenges = useMemo(
+    () => [...allChallenges.completed, ...allChallenges.expired]
+      .sort((a, b) => Number(b.created_at) - Number(a.created_at)),
+    [allChallenges.completed, allChallenges.expired]
   );
 
   return (
@@ -212,91 +227,187 @@ export function ChallengePanel({
           Game starts only when opponent accepts.
         </div>
       </section>
+
       <section className="arena-card">
-        <h3>Incoming Challenges</h3>
-        {!challengesLoading && incomingPendingChallenges.length === 0 && <p className="mono dim">No active challenges</p>}
-        {incomingPendingChallenges.map((challenge) => (
-          <div key={`${challenge.challenge_id}-${challenge.challenger}`} className="status-pill warning" style={{ marginBottom: 10 }}>
-            <span>From {truncateAddr(challenge.challenger)} for {Number(challenge.points_wagered) / 10_0000000} XLM</span>
+        <h3>Challenges</h3>
+
+        {/* Tab bar */}
+        <div className="challenge-tabs" role="tablist" aria-label="Challenge list tabs">
+          {(
+            [
+              { key: 'pending', label: 'Pending', count: pendingChallenges.length },
+              { key: 'active',  label: 'Active',  count: activeChallenges.length  },
+              { key: 'history', label: 'History', count: historyChallenges.length  },
+            ] as const
+          ).map(({ key, label, count }) => (
             <button
+              key={key}
               type="button"
-              className="btn-arena-secondary"
-              style={{ marginLeft: 8 }}
-              disabled={busy}
-              onClick={() => void onAcceptChallenge(Number(challenge.challenge_id))}
+              role="tab"
+              aria-selected={challengeTab === key}
+              className={`challenge-tab${challengeTab === key ? ' challenge-tab--active' : ''}`}
+              onClick={() => setChallengeTab(key)}
             >
-              Accept
-            </button>
-          </div>
-        ))}
-      </section>
-      <section className="arena-card">
-        <h3>Challenge History</h3>
-        {!challengesLoading && sortedChallenges.length === 0 && <p className="mono dim">No challenges yet</p>}
-        {sortedChallenges.map((challenge) => {
-          const isIncoming = challenge.challenged === userAddress;
-          const otherAddress = isIncoming ? challenge.challenger : challenge.challenged;
-          const otherUsername = challengeUsernames[otherAddress];
-          const status = challenge.is_accepted ? 'Accepted' : challenge.is_completed ? 'Completed' : 'Pending';
-          const statusClass = challenge.is_accepted ? 'success' : challenge.is_completed ? 'warning' : 'warning';
-          const sessionId = challenge.session_id == null ? null : Number(challenge.session_id);
-          const canEnterSession = challenge.is_accepted && !challenge.is_completed && sessionId !== null;
-          const completedOutcome = sessionId != null ? challengeOutcomes[sessionId] : undefined;
-          const concludedLabel = completedOutcome === 'win'
-            ? 'Won'
-            : completedOutcome === 'loss'
-              ? 'Lost'
-              : completedOutcome === 'draw'
-                ? 'Draw'
-                : 'Concluded';
-          return (
-            <button
-              key={`history-${challenge.challenge_id}`}
-              type="button"
-              className={`status-pill ${statusClass} challenge-history-item ${canEnterSession ? 'challenge-history-item--link' : ''}`}
-              onClick={() => {
-                if (canEnterSession && sessionId !== null) {
-                  onEnterSession(sessionId);
-                }
-              }}
-              disabled={busy || !canEnterSession}
-              title={canEnterSession ? 'Enter this active challenge session' : 'Session unavailable'}
-            >
-              <div className="challenge-history-row">
-                <strong>{isIncoming ? 'From' : 'To'} {otherUsername ? `@${otherUsername}` : truncateAddr(otherAddress)}</strong>
-                <span>
-                  {challenge.is_completed ? (
-                    <>
-                      Concluded{' '}
-                      <span
-                        className={`challenge-history-outcome ${
-                          completedOutcome === 'win'
-                            ? 'challenge-history-outcome--win'
-                            : completedOutcome === 'loss'
-                              ? 'challenge-history-outcome--loss'
-                              : completedOutcome === 'draw'
-                                ? 'challenge-history-outcome--draw'
-                                : ''
-                        }`}
-                      >
-                        {concludedLabel}
-                      </span>
-                    </>
-                  ) : canEnterSession ? (
-                    `${status} · Enter`
-                  ) : (
-                    status
-                  )}
+              {label}
+              {count > 0 && (
+                <span className={`challenge-tab-badge${challengeTab === key ? ' challenge-tab-badge--active' : ''}`}>
+                  {count}
                 </span>
-              </div>
-              <div className="challenge-history-meta">
-                <span>Wager: {Number(challenge.points_wagered) / 10_0000000} XLM</span>
-                <span>ID: {Number(challenge.challenge_id)}</span>
-                <span>Session: {sessionId === null ? '—' : sessionId}</span>
-              </div>
+              )}
             </button>
-          );
-        })}
+          ))}
+        </div>
+
+        {/* ── Pending tab ───────────────────────────────────────────── */}
+        {challengeTab === 'pending' && (
+          <div role="tabpanel" aria-label="Pending challenges">
+            {challengesLoading && pendingChallenges.length === 0 && (
+              <p className="mono dim">Loading…</p>
+            )}
+            {!challengesLoading && pendingChallenges.length === 0 && (
+              <p className="mono dim">No pending challenges</p>
+            )}
+            {pendingChallenges.map((challenge) => {
+              const isIncoming = challenge.challenged === userAddress;
+              const otherAddress = isIncoming ? challenge.challenger : challenge.challenged;
+              const otherUsername = challengeUsernames[otherAddress];
+              const displayName = otherUsername ? `@${otherUsername}` : truncateAddr(otherAddress);
+              const wager = Number(challenge.points_wagered) / 10_0000000;
+              return (
+                <div
+                  key={`pending-${challenge.challenge_id}`}
+                  className="status-pill warning challenge-history-item"
+                >
+                  <div className="challenge-history-row">
+                    <strong>{isIncoming ? 'From' : 'To'} {displayName}</strong>
+                    <span className="challenge-pending-label">
+                      {isIncoming ? '⚔ Incoming' : 'Sent'}
+                    </span>
+                  </div>
+                  <div className="challenge-history-meta">
+                    <span>Wager: {wager} XLM</span>
+                    <span>ID: {Number(challenge.challenge_id)}</span>
+                  </div>
+                  {isIncoming && (
+                    <button
+                      type="button"
+                      className="btn-arena-secondary"
+                      style={{ marginTop: '0.55rem' }}
+                      disabled={busy}
+                      onClick={() => void onAcceptChallenge(Number(challenge.challenge_id))}
+                    >
+                      Accept Challenge
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── Active tab ────────────────────────────────────────────── */}
+        {challengeTab === 'active' && (
+          <div role="tabpanel" aria-label="Active challenges">
+            {challengesLoading && activeChallenges.length === 0 && (
+              <p className="mono dim">Loading…</p>
+            )}
+            {!challengesLoading && activeChallenges.length === 0 && (
+              <p className="mono dim">No active sessions</p>
+            )}
+            {activeChallenges.map((challenge) => {
+              const isIncoming = challenge.challenged === userAddress;
+              const otherAddress = isIncoming ? challenge.challenger : challenge.challenged;
+              const otherUsername = challengeUsernames[otherAddress];
+              const displayName = otherUsername ? `@${otherUsername}` : truncateAddr(otherAddress);
+              const sessionId = challenge.session_id == null ? null : Number(challenge.session_id);
+              const wager = Number(challenge.points_wagered) / 10_0000000;
+              return (
+                <button
+                  key={`active-${challenge.challenge_id}`}
+                  type="button"
+                  className="status-pill success challenge-history-item challenge-history-item--link"
+                  onClick={() => { if (sessionId !== null) onEnterSession(sessionId); }}
+                  disabled={busy || sessionId === null}
+                  title="Enter this active challenge session"
+                >
+                  <div className="challenge-history-row">
+                    <strong>{isIncoming ? 'From' : 'To'} {displayName}</strong>
+                    <span>Active · Enter ▶</span>
+                  </div>
+                  <div className="challenge-history-meta">
+                    <span>Wager: {wager} XLM</span>
+                    <span>ID: {Number(challenge.challenge_id)}</span>
+                    <span>Session: {sessionId === null ? '—' : sessionId}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── History tab ───────────────────────────────────────────── */}
+        {challengeTab === 'history' && (
+          <div role="tabpanel" aria-label="Challenge history">
+            {challengesLoading && historyChallenges.length === 0 && (
+              <p className="mono dim">Loading…</p>
+            )}
+            {!challengesLoading && historyChallenges.length === 0 && (
+              <p className="mono dim">No challenge history yet</p>
+            )}
+            {historyChallenges.map((challenge) => {
+              const isIncoming = challenge.challenged === userAddress;
+              const otherAddress = isIncoming ? challenge.challenger : challenge.challenged;
+              const otherUsername = challengeUsernames[otherAddress];
+              const displayName = otherUsername ? `@${otherUsername}` : truncateAddr(otherAddress);
+              const sessionId = challenge.session_id == null ? null : Number(challenge.session_id);
+              const isExpired = !challenge.is_completed;
+              const completedOutcome = sessionId != null ? challengeOutcomes[sessionId] : undefined;
+              const concludedLabel =
+                completedOutcome === 'win'  ? 'Won'
+                : completedOutcome === 'loss' ? 'Lost'
+                : completedOutcome === 'draw' ? 'Draw'
+                : 'Concluded';
+              const wager = Number(challenge.points_wagered) / 10_0000000;
+              return (
+                <button
+                  key={`history-${challenge.challenge_id}`}
+                  type="button"
+                  className="status-pill challenge-history-item"
+                  style={{ borderColor: isExpired ? 'rgba(255,255,255,0.1)' : undefined }}
+                  disabled
+                >
+                  <div className="challenge-history-row">
+                    <strong>{isIncoming ? 'From' : 'To'} {displayName}</strong>
+                    <span>
+                      {isExpired ? (
+                        <span className="challenge-history-outcome" style={{ color: '#5a5a72' }}>Expired</span>
+                      ) : (
+                        <>
+                          Concluded{' '}
+                          <span
+                            className={`challenge-history-outcome ${
+                              completedOutcome === 'win'  ? 'challenge-history-outcome--win'
+                              : completedOutcome === 'loss' ? 'challenge-history-outcome--loss'
+                              : completedOutcome === 'draw' ? 'challenge-history-outcome--draw'
+                              : ''
+                            }`}
+                          >
+                            {concludedLabel}
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <div className="challenge-history-meta">
+                    <span>Wager: {wager} XLM</span>
+                    <span>ID: {Number(challenge.challenge_id)}</span>
+                    {sessionId !== null && <span>Session: {sessionId}</span>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </section>
     </>
   );
