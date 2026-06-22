@@ -2881,6 +2881,11 @@ button:disabled {
 .leaderboard-addr-btn:hover {
   color: #00d4ff;
 }
+.leaderboard-addr-btn--copied {
+  color: #25d366;
+  font-weight: 700;
+  pointer-events: none;
+}
 .leaderboard-you-tag {
   color: #e5133a;
   font-weight: 600;
