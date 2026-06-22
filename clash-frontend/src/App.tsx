@@ -1,6 +1,7 @@
 import { useState, useTransition } from 'react';
 import { config } from './config';
 import { Layout } from './components/Layout';
+import { GameErrorBoundary } from './components/GameErrorBoundary';
 import { BackgroundMusic } from './components/sound/BackgroundMusic';
 import { ClashGameArena } from './games/clash/ClashGameArena';
 import { Leaderboard } from './pages/Leaderboard';
@@ -84,10 +85,12 @@ export default function App() {
           </p>
         </div>
       ) : (
-        <ClashGameArena
-          onOpenLeaderboard={() => setView('leaderboard')}
-          onWalletAddressChange={setLeaderboardWalletAddress}
-        />
+        <GameErrorBoundary onHowToPlay={goHowToPlay}>
+          <ClashGameArena
+            onOpenLeaderboard={() => setView('leaderboard')}
+            onWalletAddressChange={setLeaderboardWalletAddress}
+          />
+        </GameErrorBoundary>
       )}
     </Layout>
   );

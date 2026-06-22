@@ -108,8 +108,16 @@ export function Leaderboard({ userAddress, onBack }: Props) {
     return { rank: idx + 1, row: rows[idx]! };
   }, [rows, userAddress]);
 
+  const [copiedAddr, setCopiedAddr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!copiedAddr) return;
+    const id = window.setTimeout(() => setCopiedAddr(null), 1500);
+    return () => window.clearTimeout(id);
+  }, [copiedAddr]);
+
   const copyAddr = (addr: string) => {
-    void navigator.clipboard.writeText(addr);
+    void navigator.clipboard.writeText(addr).then(() => setCopiedAddr(addr));
   };
 
   const loading = status === 'loading';
@@ -222,8 +230,8 @@ export function Leaderboard({ userAddress, onBack }: Props) {
                     <td className={`leaderboard-rank ${rankClass}`}>{rank}</td>
                     <td className="leaderboard-captain mono">
                       {usernames[r.address] && <div className="leaderboard-username">@{usernames[r.address]}</div>}
-                      <button type="button" className="leaderboard-addr-btn" onClick={() => copyAddr(r.address)} title="Copy address">
-                        {truncateAddr(r.address)}
+                      <button type="button" className={`leaderboard-addr-btn${copiedAddr === r.address ? ' leaderboard-addr-btn--copied' : ''}`} onClick={() => copyAddr(r.address)} title="Copy address">
+                        {copiedAddr === r.address ? '✓ Copied!' : truncateAddr(r.address)}
                         {isYou && <span className="leaderboard-you-tag"> (YOU)</span>}
                       </button>
                     </td>
