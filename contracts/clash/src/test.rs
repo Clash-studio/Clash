@@ -8,7 +8,7 @@
 
 use crate::{Error, ClashContract, ClashContractClient};
 use soroban_sdk::testutils::{Address as _, Ledger as _};
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String};
 
 // ============================================================================
 // Mock GameHub for Unit Testing
@@ -536,4 +536,48 @@ fn test_upgrade_function_exists() {
     // Should fail with MissingValue (WASM doesn't exist) not NotAdmin
     // This confirms the authorization check passed
     assert!(result.is_err());
+}
+
+// ============================================================================
+// Challenge & Username Flow Tests
+// ============================================================================
+
+#[test]
+fn test_duplicate_username() {
+    let (env, client, _hub, player1, _player2) = setup_test();
+    // Set username for player1
+    let name = String::from_str(&env, "pirate");
+    client.set_username(&player1, &name);
+
+    // Attempt to set same username for another address
+    let player2 = Address::generate(&env);
+    let result = client.try_set_username(&player2, &name);
+    assert_number_guess_error(&result, Error::UsernameAlreadyTaken);
+}
+
+#[test]
+fn test_self_challenge_error() {
+    let (env, client, _hub, player1, _player2) = setup_test();
+    // Attempt to challenge self
+    let result = client.try_send_challenge(&player1, &player1, &100_0000000);
+    assert_number_guess_error(&result, Error::CannotChallengeSelf);
+}
+
+#[test]
+fn test_accept_challenge_starts_game_storage() {
+    let (env, client, _hub, challenger, challenged) = setup_test();
+    // Send a challenge
+    let points = 100_0000000;
+    let challenge_id = client.send_challenge(&challenger, &challenged, &points);
+
+    // Accept the challenge with a new session id
+    let session_id = 42u32;
+    client.accept_challenge(&challenge_id, &challenged, &session_id);
+
+    // Verify that a game has been created with the correct participants
+    let game = client.get_game(&session_id);
+    assert_eq!(game.player1, challenger);
+    assert_eq!(game.player2, challenged);
+    assert_eq!(game.player1_points, points);
+    assert_eq!(game.player2_points, points);
 }

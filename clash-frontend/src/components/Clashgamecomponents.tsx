@@ -4,6 +4,7 @@
 
 import type { Game, Move, BattleResult, GamePlayback, DetailedTurnResult } from '@/games/clash/bindings';
 import { Attack, Defense } from '@/games/clash/bindings';
+import './Clashgamecomponents.css';
 
 // ─────────────────────────────────────────────────────────────
 // Constants & Meta
@@ -302,6 +303,16 @@ export function GameStatusChecklist({
 // MoveSelector — the 3-turn strategy builder
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Maps each attack to the single defense that blocks it.
+ * Slash(0) → Dodge(1), Fireball(1) → Counter(2), Lightning(2) → Block(0)
+ */
+const COUNTER_DEFENSE_BY_ATTACK: Record<number, number> = {
+  [Attack.Slash]:     Defense.Dodge,
+  [Attack.Fireball]:  Defense.Counter,
+  [Attack.Lightning]: Defense.Block,
+};
+
 export interface SelectedMove { attack: number | null; defense: number | null }
 
 const EMPTY_MOVES: SelectedMove[] = [
@@ -386,6 +397,12 @@ export function MoveSelector({ moves, onChange, disabled }: MoveSelectorProps) {
                 {defenses.map(d => {
                   const meta = DEFENSE_META[d];
                   const selected = moves[turn].defense === d;
+                  const selectedAttack = moves[turn].attack;
+                  // Highlight the one defense that counters the chosen attack
+                  const isCounterHint =
+                    selectedAttack !== null &&
+                    !selected &&
+                    COUNTER_DEFENSE_BY_ATTACK[selectedAttack] === d;
                   return (
                     <button
                       key={d}
@@ -394,10 +411,17 @@ export function MoveSelector({ moves, onChange, disabled }: MoveSelectorProps) {
                       className={`px-3 py-2 rounded-lg border-2 text-xs font-bold text-left transition-all ${
                         selected
                           ? `bg-gradient-to-r ${meta.color} text-white ${meta.border} shadow-md scale-[1.02]`
-                          : `bg-gray-50 border-gray-200 text-gray-600 hover:${meta.border} hover:bg-gray-100`
+                          : isCounterHint
+                            ? `bg-gray-50 ${meta.border} text-gray-700 counter-hint-pulse`
+                            : `bg-gray-50 border-gray-200 text-gray-600 hover:${meta.border} hover:bg-gray-100`
                       } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {meta.emoji} {meta.label}
+                      {isCounterHint && (
+                        <span className="ml-1 text-[9px] font-black uppercase tracking-wide text-amber-500">
+                          counters!
+                        </span>
+                      )}
                     </button>
                   );
                 })}

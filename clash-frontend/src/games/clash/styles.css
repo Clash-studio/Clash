@@ -1700,7 +1700,8 @@ button:disabled {
 }
 
 .cinematic-winner-title.draw {
-  color: #f0f0f5;
+  color: #c0b090;
+  text-shadow: 0 0 20px rgba(192, 176, 144, 0.35);
 }
 
 .cinematic-winner-win {
@@ -1742,9 +1743,19 @@ button:disabled {
   }
 }
 
-.cinematic-winner-loss,
+.cinematic-winner-loss {
+  text-align: center;
+}
+
 .cinematic-winner-draw {
   text-align: center;
+  position: relative;
+}
+
+.cinematic-scales {
+  font-size: 2.5rem;
+  margin-bottom: 0.25rem;
+  display: inline-block;
 }
 
 .cinematic-skull {

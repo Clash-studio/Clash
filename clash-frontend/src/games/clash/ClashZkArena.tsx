@@ -2084,9 +2084,20 @@ export function ClashZkArena({
                         </motion.div>
                       )}
                       {battlePlayback.ui.outcome === 'draw' && (
-                        <motion.div className="cinematic-winner-draw" initial={{ scale: 0.8 }} animate={{ scale: [0.8, 1.05, 1] }} transition={{ duration: 0.4 }}>
-                          <div className="cinematic-skull">⚔️</div>
-                          <div className="cinematic-winner-title draw">DEADLOCK</div>
+                        <motion.div
+                          className="cinematic-winner-draw"
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: [0.8, 1.05, 1], opacity: 1 }}
+                          transition={{ duration: 0.5 }}
+                        >
+                          <motion.div
+                            className="cinematic-scales"
+                            animate={{ y: [0, -6, 0], rotate: [0, -2, 2, 0] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                          >
+                            ⚖️
+                          </motion.div>
+                          <div className="cinematic-winner-title draw">DRAW</div>
                         </motion.div>
                       )}
                     </motion.div>
