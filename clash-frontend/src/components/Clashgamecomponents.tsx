@@ -22,9 +22,9 @@ export const ATTACK_META: Record<number, {
 export const DEFENSE_META: Record<number, {
   label: string; emoji: string; color: string; border: string; stops: string;
 }> = {
-  [Defense.Block]:   { label: 'Block',   emoji: '🛡️', stops: 'Lightning & Slash', color: 'from-sky-600   to-cyan-400',    border: 'border-sky-400'   },
-  [Defense.Dodge]:   { label: 'Dodge',   emoji: '🏃', stops: 'Fireball & Slash',  color: 'from-emerald-600 to-green-400', border: 'border-emerald-400' },
-  [Defense.Counter]: { label: 'Counter', emoji: '🔄', stops: 'Lightning & Fire',  color: 'from-pink-600  to-rose-400',    border: 'border-pink-400'  },
+  [Defense.Block]:   { label: 'Block',   emoji: '🛡️', stops: 'Lightning', color: 'from-sky-600   to-cyan-400',    border: 'border-sky-400'   },
+  [Defense.Dodge]:   { label: 'Dodge',   emoji: '🏃', stops: 'Slash',     color: 'from-emerald-600 to-green-400', border: 'border-emerald-400' },
+  [Defense.Counter]: { label: 'Counter', emoji: '🔄', stops: 'Fireball',  color: 'from-pink-600  to-rose-400',    border: 'border-pink-400'  },
 };
 
 export function shortAddress(addr: string): string {
