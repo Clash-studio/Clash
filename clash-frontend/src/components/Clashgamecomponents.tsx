@@ -174,6 +174,131 @@ export function PlayerStatusCard({ label, address, points, isYou, committed, rev
 }
 
 // ─────────────────────────────────────────────────────────────
+// GameStatusChecklist — live "waiting for opponent" card
+// ─────────────────────────────────────────────────────────────
+
+export interface GameStatusChecklistProps {
+  /** Address of the local player */
+  userAddress: string;
+  player1Address: string;
+  player2Address: string;
+  p1Committed: boolean;
+  p2Committed: boolean;
+  p1Revealed: boolean;
+  p2Revealed: boolean;
+  resolved: boolean;
+  /** ISO timestamp or null when last polled */
+  lastSyncedAt: number | null;
+  /** true while a poll is in flight */
+  syncing: boolean;
+}
+
+interface ChecklistItemProps {
+  done: boolean;
+  active: boolean;
+  label: string;
+  detail?: string;
+}
+
+function ChecklistItem({ done, active, label, detail }: ChecklistItemProps) {
+  return (
+    <div className={`game-status-checklist-item ${done ? 'done' : active ? 'active' : 'pending'}`}>
+      <span className="game-status-checklist-icon" aria-hidden>
+        {done ? '✓' : active ? '⏳' : '○'}
+      </span>
+      <span className="game-status-checklist-label">
+        {label}
+        {detail && <span className="game-status-checklist-detail">{detail}</span>}
+      </span>
+    </div>
+  );
+}
+
+export function GameStatusChecklist({
+  userAddress,
+  player1Address,
+  player2Address,
+  p1Committed,
+  p2Committed,
+  p1Revealed,
+  p2Revealed,
+  resolved,
+  lastSyncedAt,
+  syncing,
+}: GameStatusChecklistProps) {
+  const isP1 = player1Address === userAddress;
+  const myAddr = isP1 ? player1Address : player2Address;
+  const oppAddr = isP1 ? player2Address : player1Address;
+  const myCommitted = isP1 ? p1Committed : p2Committed;
+  const oppCommitted = isP1 ? p2Committed : p1Committed;
+  const myRevealed = isP1 ? p1Revealed : p2Revealed;
+  const oppRevealed = isP1 ? p2Revealed : p1Revealed;
+
+  const syncLabel = lastSyncedAt
+    ? `${Math.round((Date.now() - lastSyncedAt) / 1000)}s ago`
+    : 'never';
+
+  return (
+    <div className="game-status-checklist-card">
+      <div className="game-status-checklist-header">
+        <span className="game-status-checklist-title">⏳ Game Progress</span>
+        <span className={`game-status-checklist-sync ${syncing ? 'syncing' : ''}`}>
+          {syncing ? 'Syncing…' : `Synced ${syncLabel}`}
+        </span>
+      </div>
+
+      <div className="game-status-checklist-players">
+        <span className="game-status-checklist-you">
+          You: <span className="font-mono">{shortAddress(myAddr)}</span>
+        </span>
+        <span className="game-status-checklist-opp">
+          Opp: <span className="font-mono">{shortAddress(oppAddr)}</span>
+        </span>
+      </div>
+
+      <div className="game-status-checklist-steps">
+        <ChecklistItem
+          done={myCommitted}
+          active={!myCommitted}
+          label="Your commit"
+          detail={myCommitted ? ' ✓' : ' — pending'}
+        />
+        <ChecklistItem
+          done={oppCommitted}
+          active={myCommitted && !oppCommitted}
+          label="Opponent commit"
+          detail={oppCommitted ? ' ✓' : myCommitted ? ' — waiting…' : ' — pending'}
+        />
+        <ChecklistItem
+          done={myRevealed}
+          active={p1Committed && p2Committed && !myRevealed}
+          label="Your reveal"
+          detail={myRevealed ? ' ✓' : p1Committed && p2Committed ? ' — ready to reveal' : ' — locked'}
+        />
+        <ChecklistItem
+          done={oppRevealed}
+          active={myRevealed && !oppRevealed}
+          label="Opponent reveal"
+          detail={oppRevealed ? ' ✓' : myRevealed ? ' — waiting…' : ' — pending'}
+        />
+        <ChecklistItem
+          done={resolved}
+          active={p1Revealed && p2Revealed && !resolved}
+          label="Resolve battle"
+          detail={resolved ? ' ✓' : p1Revealed && p2Revealed ? ' — ready' : ' — pending'}
+        />
+      </div>
+
+      {!oppCommitted && myCommitted && (
+        <p className="game-status-checklist-hint">
+          Polling every 15 s — opponent still needs to commit their moves.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // MoveSelector — the 3-turn strategy builder
 // ─────────────────────────────────────────────────────────────
 
