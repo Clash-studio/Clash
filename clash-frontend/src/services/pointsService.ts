@@ -72,6 +72,22 @@ function createAdminWriteClient(): PointsTrackerClient | null {
 export type PointsRecordStatus = 'recorded' | 'skipped_no_admin' | 'failed';
 
 /**
+ * Map a leaderboard-write status to a user-facing notice, or `null` when there is
+ * nothing to surface (`recorded`, a draw, or no write attempted). Kept next to the
+ * status type so the wording stays in one place and can be reused across arenas.
+ */
+export function leaderboardNoticeForStatus(status: PointsRecordStatus | null): string | null {
+  switch (status) {
+    case 'skipped_no_admin':
+      return 'Leaderboard not updated (admin not configured)';
+    case 'failed':
+      return 'Leaderboard not updated (record failed)';
+    default:
+      return null;
+  }
+}
+
+/**
  * Admin-signed `record_result` (uses `VITE_DEV_POINTS_TRACKER_ADMIN_SECRET`).
  * Invoked from {@link ClashGameService.resolveBattleWithSmartAccount} after a successful resolve.
  * Returns a status so the UI can surface a non-blocking notice when the leaderboard
