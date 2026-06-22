@@ -13,7 +13,7 @@ import { recordSessionLoadActivity } from '@/utils/onChainTxFeed';
 import { CopyChip } from './components/CopyChip';
 import { buildInviteLink, readSessionParam } from './inviteLink';
 import { CLASH_CONTRACT, NETWORK } from '@/utils/constants';
-import { registerDuelParticipants } from '@/services/pointsService';
+import { registerDuelParticipants, leaderboardNoticeForStatus } from '@/services/pointsService';
 import { ChallengePanel } from './ChallengePanel';
 
 type ZkPhase = 'create' | 'commit' | 'waiting_reveal' | 'reveal' | 'resolve' | 'complete';
@@ -884,6 +884,7 @@ export function ClashZkArena({
   const [error, setError] = useState<string | null>(null);
   const [criticalError, setCriticalError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [leaderboardNotice, setLeaderboardNotice] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [proofPulse, setProofPulse] = useState<'idle' | 'success' | 'failed'>('idle');
   const [burstTurn, setBurstTurn] = useState<number | null>(null);
@@ -1269,12 +1270,16 @@ export function ClashZkArena({
 
   const handleResolve = async () => {
     setBusy(true);
+    setLeaderboardNotice(null);
     try {
-      await clashService.resolveBattleWithSmartAccount(sessionId, smartAccountService);
+      const pointsStatus = await clashService.resolveBattleWithSmartAccount(sessionId, smartAccountService);
       const pb = await clashService.getGamePlayback(sessionId);
       if (pb) setGamePlayback(pb);
       setPhase('complete');
       setSuccess('Battle resolved.');
+      // Non-blocking notice when the leaderboard write was skipped/failed — the battle
+      // itself resolved fine regardless.
+      setLeaderboardNotice(leaderboardNoticeForStatus(pointsStatus));
       onBattleResolved?.();
     } catch (e) {
       setCriticalError(e instanceof Error ? e.message : 'Resolve failed');
@@ -1298,6 +1303,7 @@ export function ClashZkArena({
     setProofMovesKey(null);
     setError(null);
     setSuccess(null);
+    setLeaderboardNotice(null);
     setCommitPhase('idle');
     setCommitTxError(null);
   };
@@ -2205,6 +2211,21 @@ export function ClashZkArena({
 
       {phase === 'complete' && (success || error) && (
         <p className={`status-pill ${error ? 'error' : 'success'}`}>{error ?? success}</p>
+      )}
+
+      {leaderboardNotice && (
+        <div className="leaderboard-notice-banner" role="status">
+          <span aria-hidden>ⓘ</span>
+          <span>{leaderboardNotice}</span>
+          <button
+            type="button"
+            className="leaderboard-notice-dismiss"
+            onClick={() => setLeaderboardNotice(null)}
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
       )}
     </div>
   );
