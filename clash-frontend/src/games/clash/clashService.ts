@@ -18,7 +18,7 @@ import { Buffer } from 'buffer';
 import { signAndSendViaLaunchtube } from '@/utils/transactionHelper';
 import { calculateValidUntilLedger } from '@/utils/ledgerUtils';
 import { injectSignedAuthEntry } from '@/utils/authEntryUtils';
-import { submitPointsRecordAfterResolve } from '@/services/pointsService';
+import { submitPointsRecordAfterResolve, type PointsRecordStatus } from '@/services/pointsService';
 import { requestCache, createCacheKey } from '@/utils/requestCache';
 
 type ClientOptions = contract.ClientOptions;

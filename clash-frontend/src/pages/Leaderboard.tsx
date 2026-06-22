@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { fetchLeaderboardData } from '@/services/pointsService';
+import { fetchLeaderboardData, getPointsTrackerContractId } from '@/services/pointsService';
 import { ClashGameService } from '@/games/clash/clashService';
-import { getContractId } from '@/utils/constants';
+import { getContractId, RPC_URL } from '@/utils/constants';
 import { PageLoading } from '@/components/PageLoading';
 import '@/games/clash/styles.css';
 
@@ -22,6 +22,7 @@ export function Leaderboard({ userAddress, onBack }: Props) {
   const [rows, setRows] = useState<Array<{ address: string; points: number }>>([]);
   const [usernames, setUsernames] = useState<Record<string, string | null>>({});
   const [status, setStatus] = useState<LoadStatus>('loading');
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastFetch, setLastFetch] = useState<number | null>(null);
   const [tick, setTick] = useState(0);
@@ -45,11 +46,13 @@ export function Leaderboard({ userAddress, onBack }: Props) {
       setRows(data);
       setLastFetch(Date.now());
       setStatus('ready');
-    } catch {
+      setErrorDetails(null);
+    } catch (err: any) {
       if (!hasRows && !background) {
         setRows([]);
       }
       setStatus('error');
+      setErrorDetails(err instanceof Error ? err.message : String(err));
     } finally {
       setRefreshing(false);
     }
@@ -186,10 +189,37 @@ export function Leaderboard({ userAddress, onBack }: Props) {
 
       {hasError && !loading && (
         <div className="leaderboard-error">
-          <span>⚠ Failed to load leaderboard</span>
-          <button type="button" className="leaderboard-retry" onClick={() => void fetchLeaderboard()}>
-            ↻ Try Again
-          </button>
+          <div className="leaderboard-error-title">
+            <span>⚠ Failed to load leaderboard</span>
+          </div>
+          {errorDetails && (
+            <div className="leaderboard-error-details mono">
+              {errorDetails}
+            </div>
+          )}
+          <div className="leaderboard-error-hint">
+            <p className="leaderboard-error-hint-title"><strong>Configuration Diagnostics:</strong></p>
+            <div className="leaderboard-error-config-row">
+              <span className="leaderboard-config-label">Contract ID:</span>
+              <code className="leaderboard-error-code mono">{getPointsTrackerContractId()}</code>
+            </div>
+            <p className="leaderboard-error-hint-sub">Configured via environment variable <code>VITE_DEV_POINTS_TRACKER_CONTRACT_ID</code> in <code>.env</code>.</p>
+            
+            <div className="leaderboard-error-config-row">
+              <span className="leaderboard-config-label">RPC URL:</span>
+              <code className="leaderboard-error-code mono">{RPC_URL}</code>
+            </div>
+            <p className="leaderboard-error-hint-sub">Configured via environment variable <code>VITE_SOROBAN_RPC_URL</code>.</p>
+            
+            <p className="leaderboard-error-action-hint">
+              <strong>Action required:</strong> If you are running locally, make sure your local contracts are deployed and initialized via <code>bun run setup</code>, and verify that the Soroban RPC server is online.
+            </p>
+          </div>
+          <div className="leaderboard-retry-container">
+            <button type="button" className="leaderboard-retry" onClick={() => void fetchLeaderboard()}>
+              ↻ Try Again
+            </button>
+          </div>
         </div>
       )}
 
