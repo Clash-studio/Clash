@@ -8,7 +8,7 @@ import type { SmartAccountService } from './smartAccountService';
 import type { DetailedTurnResult, Game, GamePlayback, Move } from './bindings';
 import { Attack, Defense } from './bindings';
 import type { SelectedMove } from '@/components/Clashgamecomponents';
-import { createEmptyMoves } from '@/components/Clashgamecomponents';
+import { createEmptyMoves, GameStatusChecklist } from '@/components/Clashgamecomponents';
 import { recordSessionLoadActivity } from '@/utils/onChainTxFeed';
 import { CopyChip } from './components/CopyChip';
 import { CLASH_CONTRACT, NETWORK } from '@/utils/constants';
@@ -1026,6 +1026,15 @@ export function ClashZkArena({
     return () => window.clearInterval(id);
   }, [phase, loadGameState]);
 
+  // Dedicated 15-second poller while waiting for the opponent to commit.
+  // Runs in addition to the 4s poller so the checklist stays fresh without
+  // hammering the RPC — the 4s loop handles reveal/resolve phases.
+  useEffect(() => {
+    if (phase !== 'waiting_reveal') return;
+    const id = window.setInterval(() => void loadGameState(), 15_000);
+    return () => window.clearInterval(id);
+  }, [phase, loadGameState]);
+
   useEffect(() => {
     try {
       localStorage.setItem(storageKeyMoves(sessionId, userAddress), JSON.stringify(selectedMoves));
@@ -1753,7 +1762,20 @@ export function ClashZkArena({
                     />
                   </>
                 )}
-                {phase === 'waiting_reveal' && <p className="status-pill warning">Waiting for opponent commit...</p>}
+                {phase === 'waiting_reveal' && (
+                  <GameStatusChecklist
+                    userAddress={userAddress}
+                    player1Address={gameState?.player1 ?? ''}
+                    player2Address={gameState?.player2 ?? ''}
+                    p1Committed={gameState?.has_player1_commitment ?? false}
+                    p2Committed={gameState?.has_player2_commitment ?? false}
+                    p1Revealed={gameState?.player1_commitment?.has_revealed ?? false}
+                    p2Revealed={gameState?.player2_commitment?.has_revealed ?? false}
+                    resolved={gameState?.has_battle_result ?? false}
+                    lastSyncedAt={lastSyncedAt}
+                    syncing={gameStateSyncing}
+                  />
+                )}
               </>
             )}
 
