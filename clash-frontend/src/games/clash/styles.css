@@ -307,6 +307,18 @@
 }
 .arena-card h3 { margin: 0 0 0.65rem; color: #f0f0f5; font-size: 1.5rem; }
 .arena-card label { display: block; margin-bottom: 0.35rem; color: #5a5a72; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.duel-invite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.duel-invite-label { color: #8a8aa0; font-size: 0.78rem; }
+.duel-invite-label strong { color: #00d4ff; font-variant-numeric: tabular-nums; }
 .field-with-unit { position: relative; margin-bottom: 0.6rem; }
 .field-with-unit input { padding-right: 3rem; }
 .field-with-unit span { position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); color: #f5a623; font-size: 0.72rem; }

@@ -11,6 +11,7 @@ import type { SelectedMove } from '@/components/Clashgamecomponents';
 import { createEmptyMoves, GameStatusChecklist } from '@/components/Clashgamecomponents';
 import { recordSessionLoadActivity } from '@/utils/onChainTxFeed';
 import { CopyChip } from './components/CopyChip';
+import { buildInviteLink, readSessionParam } from './inviteLink';
 import { CLASH_CONTRACT, NETWORK } from '@/utils/constants';
 import { registerDuelParticipants } from '@/services/pointsService';
 import { ChallengePanel } from './ChallengePanel';
@@ -905,6 +906,14 @@ export function ClashZkArena({
     return () => window.clearInterval(id);
   }, []);
 
+  // Shared invite link (?session=<id>): pre-fill the Rejoin Arena field only.
+  // We intentionally do NOT auto-load — handleLoadSession still enforces the
+  // player-membership check, so a link can never bypass auth.
+  useEffect(() => {
+    const sid = readSessionParam();
+    if (sid !== null) setLoadSessionId(String(sid));
+  }, []);
+
   useEffect(() => {
     if (hasActiveSessionKey) setShowOnboardingDialog(false);
   }, [hasActiveSessionKey]);
@@ -1589,6 +1598,12 @@ export function ClashZkArena({
             transition={{ duration: 0.28 }}
             className="arena-card"
           >
+            <div className="duel-invite-row">
+              <span className="duel-invite-label">
+                Invite your opponent to session <strong>#{sessionId}</strong>
+              </span>
+              <CopyChip label="INVITE LINK ⧉" value={buildInviteLink(sessionId)} display="🔗 Copy invite link" />
+            </div>
             {(phase === 'commit' || phase === 'waiting_reveal') && (
               <>
                 <h3>Pick Your Moves</h3>
