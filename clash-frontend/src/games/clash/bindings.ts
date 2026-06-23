@@ -97,7 +97,7 @@ export enum Defense {
 
 export interface PvPMatch {
   current_turn: u32;
-  last_action: Option<Move>;
+  last_action: Array<Move>;
   match_id: u32;
   player1: string;
   player1_hp: i32;
