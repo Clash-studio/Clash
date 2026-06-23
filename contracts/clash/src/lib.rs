@@ -46,6 +46,12 @@ pub trait GameHub {
     );
 
     fn end_game(env: Env, session_id: u32, player1_won: bool);
+
+    /// End a session that ended in a draw. The hub refunds both stakes from
+    /// escrow (issue #1) rather than paying a pot to a winner. Kept as a
+    /// separate entrypoint so draw semantics are explicit at the call site
+    /// instead of overloading `end_game(session_id, false)`.
+    fn end_game_draw(env: Env, session_id: u32);
 }
 
 #[soroban_sdk::contractclient(name = "ClashTokenClient")]
@@ -108,6 +114,7 @@ pub enum Error {
     CommitmentMismatch  = 18,
     InvalidPublicInputs = 19,
     ForfeitTooEarly = 20,
+    ChallengeAlreadyAccepted = 21,
 }
 #[contracterror]
 #[repr(u32)]
@@ -264,7 +271,11 @@ pub struct PvPMatch {
     pub current_turn: u32, // 0 for player1's turn, 1 for player2's turn
     pub player1_hp: i32,
     pub player2_hp: i32,
-    pub last_action: Option<Move>,
+    // Pending move for the current turn: empty = none, one element = a move is
+    // staged. Modeled as `Vec<Move>` rather than `Option<Move>` because
+    // soroban-sdk's `testutils` codegen cannot derive XDR conversions for
+    // `Option<CustomType>`, which breaks `cargo test` for the whole crate.
+    pub last_action: Vec<Move>,
     pub winner: Option<Address>,
 }
 
@@ -292,6 +303,9 @@ pub enum DataKey {
 
 #[cfg(test)]
 mod decline_test;
+
+#[cfg(test)]
+mod resolve_test;
 
 #[contract]
 pub struct ClashContract;
@@ -958,11 +972,9 @@ pub fn reveal_moves(
 
         let game_hub = GameHubClient::new(&env, &game_hub_addr);
         if battle_result.is_draw {
-            // For a draw, we don't care about player1_won value
-            // GameHub should detect this is a draw and handle accordingly (refund points, etc.)
-            // You can use false as a convention for draws, or the GameHub can be updated
-            // to check if both players have same points remaining
-            game_hub.end_game(&session_id, &false);
+            // Explicit draw semantics: the hub refunds both stakes from escrow
+            // (issue #1) instead of paying a pot. No CSH reward is minted on a draw.
+            game_hub.end_game_draw(&session_id);
         } else {
             let winner = battle_result.winner.as_ref().unwrap();
             let player1_won = winner == &game.player1;
@@ -1264,7 +1276,7 @@ pub fn reveal_moves(
             current_turn: 0,
             player1_hp: STARTING_HP,
             player2_hp: STARTING_HP,
-            last_action: None,
+            last_action: vec![&env], // no move staged yet
             winner: None,
         };
 
@@ -1348,7 +1360,7 @@ pub fn reveal_moves(
         }
 
         // Apply the action
-        if let Some(last_move) = pvp_match.last_action {
+        if let Some(last_move) = pvp_match.last_action.first() {
             // Resolve with last move
             let (damage1, damage2) = Self::resolve_turn(last_move, action);
             pvp_match.player1_hp -= damage1;
@@ -1366,9 +1378,9 @@ pub fn reveal_moves(
             } else {
                 pvp_match.current_turn += 1;
             }
-            pvp_match.last_action = None;
+            pvp_match.last_action = vec![&env]; // clear the staged move
         } else {
-            pvp_match.last_action = Some(action);
+            pvp_match.last_action = vec![&env, action]; // stage this player's move
             pvp_match.current_turn += 1;
         }
 
