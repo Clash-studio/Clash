@@ -163,8 +163,9 @@ export function ChallengePanel({
   }, [challengeOutcomes, clashService, userAddress]);
 
   useEffect(() => {
+    if (!userAddress) return;
     void loadChallenges();
-    const id = window.setInterval(() => void loadChallenges(), 8000);
+    const id = window.setInterval(() => void loadChallenges(), 30_000);
     return () => clearInterval(id);
   }, [loadChallenges]);
 
@@ -177,6 +178,8 @@ export function ChallengePanel({
       .sort((a, b) => Number(b.created_at) - Number(a.created_at)),
     [allChallenges.active]
   );
+
+  const incomingCount = pendingChallenges.filter((c) => c.challenged === userAddress).length;
 
   // Active: accepted but not completed — sessions you can enter
   const activeChallenges = useMemo(
@@ -229,7 +232,16 @@ export function ChallengePanel({
       </section>
 
       <section className="arena-card">
-        <h3>Challenges</h3>
+        <h3>
+          Challenges
+          {incomingCount > 0 && (
+            <span
+              aria-hidden
+              style={{ display: 'inline-block', width: 8, height: 8, background: '#ff5a5a', borderRadius: 8, marginLeft: 8 }}
+              title={`${incomingCount} incoming`}
+            />
+          )}
+        </h3>
 
         {/* Tab bar */}
         <div className="challenge-tabs" role="tablist" aria-label="Challenge list tabs">
