@@ -2669,6 +2669,61 @@ button:disabled {
   color: #a0a0b0;
 }
 
+.clash-onboarding-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0.75rem 0;
+}
+.clash-onboarding-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 5px;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background 0.15s ease;
+}
+.clash-onboarding-checklist-item.done {
+  background: rgba(0, 212, 100, 0.08);
+  border-color: rgba(0, 212, 100, 0.2);
+}
+.clash-onboarding-checklist-item.active {
+  background: rgba(229, 19, 58, 0.1);
+  border-color: rgba(229, 19, 58, 0.35);
+}
+.clash-onboarding-checklist-item.pending {
+  opacity: 0.45;
+}
+.clash-onboarding-checklist-icon {
+  font-size: 13px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.clash-onboarding-checklist-item.done .clash-onboarding-checklist-icon {
+  color: #00d464;
+}
+.clash-onboarding-checklist-item.active .clash-onboarding-checklist-icon {
+  color: #e5133a;
+}
+.clash-onboarding-checklist-label {
+  color: #c0c0d0;
+  line-height: 1.4;
+}
+.clash-onboarding-checklist-item.done .clash-onboarding-checklist-label {
+  color: #a0e0b0;
+  text-decoration: line-through;
+  text-decoration-color: rgba(0, 212, 100, 0.35);
+}
+.clash-onboarding-checklist-item.active .clash-onboarding-checklist-label {
+  color: #fff;
+  font-weight: 600;
+}
+
 .clash-session-toast {
   position: fixed;
   top: 0.75rem;

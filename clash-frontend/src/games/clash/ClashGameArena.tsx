@@ -774,6 +774,7 @@ export function ClashGameArena({ onOpenLeaderboard, onWalletAddressChange }: Cla
                 sessionPointsLoading={trackerPointsLoading}
                 sessionPointsError={trackerPointsError}
                 onRefreshSessionPoints={() => void fetchTrackerPoints()}
+                hasUsername={username !== null}
                 onBattleResolved={() =>
                   Promise.all([
                     fetchTrackerPoints({
