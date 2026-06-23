@@ -300,6 +300,43 @@ export function GameStatusChecklist({
 }
 
 // ─────────────────────────────────────────────────────────────
+// SessionOnboardingChecklist — wallet → session key → username → arena
+// ─────────────────────────────────────────────────────────────
+
+export interface SessionOnboardingChecklistProps {
+  hasSessionKey: boolean;
+  hasUsername: boolean;
+}
+
+export function SessionOnboardingChecklist({ hasSessionKey, hasUsername }: SessionOnboardingChecklistProps) {
+  const steps = [
+    { label: 'Connect passkey wallet', done: true },
+    { label: 'Create session key', done: hasSessionKey },
+    { label: 'Choose username', done: hasUsername },
+    { label: 'Enter the arena', done: hasSessionKey && hasUsername },
+  ];
+  const firstPending = steps.findIndex((s) => !s.done);
+  return (
+    <div className="clash-onboarding-checklist">
+      {steps.map((step, i) => {
+        const active = i === firstPending;
+        return (
+          <div
+            key={step.label}
+            className={`clash-onboarding-checklist-item ${step.done ? 'done' : active ? 'active' : 'pending'}`}
+          >
+            <span className="clash-onboarding-checklist-icon" aria-hidden>
+              {step.done ? '✓' : active ? '⏳' : '○'}
+            </span>
+            <span className="clash-onboarding-checklist-label">{step.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // MoveSelector — the 3-turn strategy builder
 // ─────────────────────────────────────────────────────────────
 

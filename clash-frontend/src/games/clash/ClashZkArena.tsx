@@ -8,7 +8,7 @@ import type { SmartAccountService } from './smartAccountService';
 import type { DetailedTurnResult, Game, GamePlayback, Move } from './bindings';
 import { Attack, Defense } from './bindings';
 import type { SelectedMove } from '@/components/Clashgamecomponents';
-import { createEmptyMoves, GameStatusChecklist } from '@/components/Clashgamecomponents';
+import { createEmptyMoves, GameStatusChecklist, SessionOnboardingChecklist } from '@/components/Clashgamecomponents';
 import { recordSessionLoadActivity } from '@/utils/onChainTxFeed';
 import { CopyChip } from './components/CopyChip';
 import { buildInviteLink, readSessionParam } from './inviteLink';
@@ -799,6 +799,8 @@ type Props = {
   sessionPointsError?: boolean;
   onRefreshSessionPoints?: () => void;
   onBattleResolved?: () => void;
+  /** Whether the player has already set a username — used in onboarding checklist. */
+  hasUsername?: boolean;
 };
 
 const CLASH_SESSION_ONBOARDING_KEY = 'clash_session_onboarding_seen';
@@ -869,6 +871,7 @@ export function ClashZkArena({
   sessionPointsError = false,
   onRefreshSessionPoints,
   onBattleResolved,
+  hasUsername = false,
 }: Props) {
   const noir = useRef(new NoirService());
   const [phase, setPhase] = useState<ZkPhase>('create');
@@ -1491,11 +1494,12 @@ export function ClashZkArena({
               ⚡ BEFORE YOU ENTER THE ARENA
             </h2>
             <p className="clash-onboarding-body">
-              Create a Session Key to sign game transactions without a passkey prompt every move.
+              Complete setup to play. Each step unlocks the next.
             </p>
-            <p className="clash-onboarding-bullet">● Scoped only to the Clash contract</p>
-            <p className="clash-onboarding-bullet">● Stored locally — never leaves your device</p>
-            <p className="clash-onboarding-bullet">● Expires automatically after this session</p>
+            <SessionOnboardingChecklist
+              hasSessionKey={hasActiveSessionKey}
+              hasUsername={hasUsername}
+            />
             <button
               type="button"
               className="clash-onboarding-primary"
