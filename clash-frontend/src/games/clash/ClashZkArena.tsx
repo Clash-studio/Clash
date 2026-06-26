@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, type Variants } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig, type Variants } from 'framer-motion';
 import { Loader2, Lock, ShieldAlert } from 'lucide-react';
 import { Buffer } from 'buffer';
-import { NoirService, type ClashProofResult } from '@/utils/NoirService';
+import { NoirService, type ClashProofResult, type ClashProofStage } from '@/utils/NoirService';
 import type { ClashGameService } from './clashService';
 import type { SmartAccountService } from './smartAccountService';
 import type { DetailedTurnResult, Game, GamePlayback, Move } from './bindings';
@@ -337,11 +337,18 @@ function MatrixRain({ active }: { active: boolean }) {
 
 type CommitPhase = 'idle' | 'proving' | 'committing' | 'done' | 'proof-error' | 'commit-error';
 
+const PROOF_STEPS: { key: ClashProofStage; label: string }[] = [
+  { key: 'witness', label: 'Witness' },
+  { key: 'proof', label: 'Proof' },
+  { key: 'verify', label: 'Verify' },
+];
+
 function ProofTerminal({
   proofBundle,
   sessionId,
   allMovesComplete,
   commitPhase,
+  proofStage,
   proofError,
   onRetryProof,
 }: {
@@ -349,6 +356,7 @@ function ProofTerminal({
   sessionId: number;
   allMovesComplete: boolean;
   commitPhase: CommitPhase;
+  proofStage: ClashProofStage | null;
   proofError: string | null;
   onRetryProof: () => void;
 }) {
@@ -422,6 +430,8 @@ function ProofTerminal({
     return () => clearTimeout(t);
   }, [generating, lineIdx, charIdx]);
 
+  const activeStepIdx = proofStage ? PROOF_STEPS.findIndex((s) => s.key === proofStage) : -1;
+
   let mode: 'idle' | 'generating' | 'valid' | 'error' = 'idle';
   if (generating) mode = 'generating';
   else if (commitPhase === 'proof-error') mode = 'error';
@@ -471,6 +481,37 @@ function ProofTerminal({
                 <div className="zk-term-progress-fill" style={{ width: `${Math.round(progress)}%` }} />
               </div>
               <span className="zk-term-progress-label">PROVING... {Math.round(progress)}%</span>
+            </div>
+            <div className="zk-proof-steps" role="list" aria-label="Proof generation progress">
+              {PROOF_STEPS.map((step, i) => {
+                const state =
+                  activeStepIdx < 0
+                    ? 'pending'
+                    : i < activeStepIdx
+                    ? 'done'
+                    : i === activeStepIdx
+                    ? 'active'
+                    : 'pending';
+                return (
+                  <div
+                    key={step.key}
+                    className={`zk-proof-step zk-proof-step--${state}`}
+                    role="listitem"
+                    aria-current={state === 'active' ? 'step' : undefined}
+                  >
+                    <span className="zk-proof-step-icon" aria-hidden>
+                      {state === 'active' ? (
+                        <Loader2 className="zk-proof-step-spinner" size={13} />
+                      ) : state === 'done' ? (
+                        '✓'
+                      ) : (
+                        '○'
+                      )}
+                    </span>
+                    <span className="zk-proof-step-label">{step.label}</span>
+                  </div>
+                );
+              })}
             </div>
           </>
         )}
@@ -554,7 +595,34 @@ function PirateCharacter({
   );
 }
 
-function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, userAddress: string) {
+// Tracks the OS "reduce motion" accessibility preference, updating live if the
+// user toggles it. Used to shorten the battle playback and to drive the CSS /
+// framer-motion reduced paths.
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState<boolean>(
+    () =>
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  return reduced;
+}
+
+function useBattlePlayback(
+  gamePlayback: GamePlayback | null,
+  active: boolean,
+  userAddress: string,
+  reducedMotion: boolean,
+) {
   const [ui, setUi] = useState<BattlePlaybackUi>(() => ({
     round: 0,
     segment: 'idle',
@@ -581,17 +649,23 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
   }));
 
   const runIdRef = useRef(0);
+  const timersRef = useRef<number[]>([]);
 
   useEffect(() => {
     if (!active || !gamePlayback?.turn_results?.length) return;
     const runId = ++runIdRef.current;
-    const timers: number[] = [];
+    timersRef.current = [];
+    const timers = timersRef.current;
+    // Reduced motion compresses the whole timeline (state transitions still run
+    // in order, just far quicker) so the playback is short and simple instead of
+    // a long cinematic sequence.
+    const timeScale = reducedMotion ? 0.1 : 1;
     const q = (ms: number, fn: () => void) => {
       timers.push(
         window.setTimeout(() => {
           if (runId !== runIdRef.current) return;
           fn();
-        }, ms)
+        }, Math.round(ms * timeScale))
       );
     };
 
@@ -771,9 +845,64 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
       runIdRef.current++;
       timers.forEach((id) => clearTimeout(id));
     };
+  }, [active, gamePlayback, userAddress, reducedMotion]);
+
+  // Skip / fast-forward: cancel any pending steps and jump straight to the final
+  // HP and winner screen. The outcome shown is identical to letting the cinematic
+  // run to completion; only the animated path in between is skipped.
+  const skip = useCallback(() => {
+    if (!active || !gamePlayback?.turn_results?.length) return;
+    runIdRef.current++;
+    timersRef.current.forEach((id) => clearTimeout(id));
+    timersRef.current = [];
+    setUi((s) => computeFinalPlaybackUi(s, gamePlayback, userAddress));
   }, [active, gamePlayback, userAddress]);
 
-  return { ui };
+  return { ui, skip };
+}
+
+// Computes the end state of the playback (final HP, winner overlay, results
+// table and buttons) directly from the game result, so "Skip to results" lands
+// on exactly the same screen the cinematic ends on.
+function computeFinalPlaybackUi(
+  prev: BattlePlaybackUi,
+  gp: GamePlayback,
+  userAddress: string,
+): BattlePlaybackUi {
+  const turns = gp.turn_results.slice(0, 3);
+  const last = turns[turns.length - 1];
+  const hp1 = last ? Number(last.player1_hp_remaining) : prev.hp1;
+  const hp2 = last ? Number(last.player2_hp_remaining) : prev.hp2;
+  const isDraw = gp.is_draw;
+  const w = gp.winner?.toString?.() ?? '';
+  const p1w = !isDraw && w === gp.player1;
+  const p2w = !isDraw && w === gp.player2;
+  let outcome: 'win' | 'loss' | 'draw' = 'draw';
+  if (!isDraw) outcome = isLocalPlayer(w, userAddress) ? 'win' : 'loss';
+
+  return {
+    ...prev,
+    round: Math.max(0, turns.length - 1),
+    segment: 'winner',
+    hp1,
+    hp2,
+    p1Anim: p1w ? 'victory' : p2w ? 'defeated' : 'idle',
+    p2Anim: p2w ? 'victory' : p1w ? 'defeated' : 'idle',
+    floatText: null,
+    floatSide: null,
+    showRoundTitle: false,
+    p1AtkCard: false,
+    p1DefCard: false,
+    p2AtkCard: false,
+    p2DefCard: false,
+    narration: null,
+    exchangeFlash: false,
+    vignetteHit: false,
+    showWinnerOverlay: true,
+    showEndTable: true,
+    showEndButtons: true,
+    outcome,
+  };
 }
 
 function stellarExplorerContractUrl(contractId: string) {
@@ -896,6 +1025,7 @@ export function ClashZkArena({
   const [showOnboardingDialog, setShowOnboardingDialog] = useState(false);
   const [sessionKeyToast, setSessionKeyToast] = useState(false);
   const [commitPhase, setCommitPhase] = useState<CommitPhase>('idle');
+  const [proofStage, setProofStage] = useState<ClashProofStage | null>(null);
   const [commitTxError, setCommitTxError] = useState<string | null>(null);
   const [oppRevealToast, setOppRevealToast] = useState(false);
   const [waitingRevealFlash, setWaitingRevealFlash] = useState(false);
@@ -903,7 +1033,8 @@ export function ClashZkArena({
   const [gameStateSyncing, setGameStateSyncing] = useState(false);
   const wasWaitingForOppRevealRef = useRef(false);
 
-  const battlePlayback = useBattlePlayback(gamePlayback, phase === 'complete' && Boolean(gamePlayback), userAddress);
+  const reducedMotion = usePrefersReducedMotion();
+  const battlePlayback = useBattlePlayback(gamePlayback, phase === 'complete' && Boolean(gamePlayback), userAddress, reducedMotion);
 
   useEffect(() => {
     const id = window.setInterval(() => setPollTick((n) => n + 1), 1000);
@@ -1168,24 +1299,31 @@ export function ClashZkArena({
   const proofMatchesMoves = Boolean(proofBundle && proofMovesKey === movesKey);
 
   const handleForgeAndCommit = async () => {
+    if (busy) return; // guard against double-submit while a proof/commit is in flight
     if (!allMovesComplete(selectedMoves)) return setError('Fill attack and defense for all 3 turns.');
     setCommitTxError(null);
     setError(null);
     setBusy(true);
     setCommitPhase('proving');
+    setProofStage('witness');
     let proofResult: ClashProofResult;
     try {
       const attacks = selectedMoves.map((m) => m.attack!) as [number, number, number];
       const defenses = selectedMoves.map((m) => m.defense!) as [number, number, number];
-      proofResult = await noir.current.generateClashProof('duel_commit_circuit', {
-        attacks,
-        defenses,
-        playerAddress: userAddress,
-        sessionId,
-      });
+      proofResult = await noir.current.generateClashProof(
+        'duel_commit_circuit',
+        {
+          attacks,
+          defenses,
+          playerAddress: userAddress,
+          sessionId,
+        },
+        (stage) => setProofStage(stage),
+      );
     } catch (e) {
       setProofPulse('failed');
       setCommitPhase('proof-error');
+      setProofStage(null);
       setError(e instanceof Error ? e.message : 'Proof generation failed');
       setProofBundle(null);
       setProofMovesKey(null);
@@ -1193,6 +1331,7 @@ export function ClashZkArena({
       setTimeout(() => setProofPulse('idle'), 600);
       return;
     }
+    setProofStage(null);
 
     const nextKey = JSON.stringify(selectedMoves.map((m) => [m.attack, m.defense]));
     setProofBundle(proofResult);
@@ -1782,6 +1921,7 @@ export function ClashZkArena({
                       sessionId={sessionId}
                       allMovesComplete={movesReady}
                       commitPhase={commitPhase}
+                      proofStage={proofStage}
                       proofError={error}
                       onRetryProof={() => void handleForgeAndCommit()}
                     />
@@ -1863,7 +2003,18 @@ export function ClashZkArena({
       )}
 
       {phase === 'complete' && gamePlayback && (
+        <MotionConfig reducedMotion="user">
         <div className="cinematic-battle-root">
+          {!battlePlayback.ui.showWinnerOverlay && (
+            <button
+              type="button"
+              className="cinematic-skip-btn"
+              onClick={battlePlayback.skip}
+              aria-label="Skip cinematic playback and show results"
+            >
+              Skip to results ⏭
+            </button>
+          )}
           {(() => {
             const tr = gamePlayback.turn_results[battlePlayback.ui.round] ?? gamePlayback.turn_results[0]!;
             const p1Atk = attackMeta(tr.player1_move.attack);
@@ -2211,6 +2362,7 @@ export function ClashZkArena({
             );
           })()}
         </div>
+        </MotionConfig>
       )}
 
       {phase === 'complete' && (success || error) && (

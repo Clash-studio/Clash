@@ -44,6 +44,9 @@ export interface ClashProofInputs {
   sessionId:      number;                   // u32 game session
 }
 
+/** Stages reported via the `onProgress` callback during proof generation. */
+export type ClashProofStage = 'witness' | 'proof' | 'verify';
+
 export interface ClashProofResult {
   /** 96 bytes: [player_address(32) | session_id(32) | commitment_hash(32)] */
   publicInputs:     Uint8Array;
@@ -69,6 +72,7 @@ export class NoirService {
   async generateClashProof(
     circuitName: string,
     inputs: ClashProofInputs,
+    onProgress?: (stage: ClashProofStage) => void,
   ): Promise<ClashProofResult> {
   
     // ── 0. WASM init ────────────────────────────────────────────────────────
@@ -100,6 +104,7 @@ export class NoirService {
     console.log('[2/5] Circuit inputs prepared:', noirInputs);
   
     // ── 3. Execute circuit → witness + return value ──────────────────────────
+    onProgress?.('witness');
     console.log('[3/5] Executing circuit...');
     let witness, returnValue;
     
@@ -115,6 +120,7 @@ export class NoirService {
     }
   
     // ── 4. Generate UltraHonk proof ──────────────────────────────────────────
+    onProgress?.('proof');
     console.log('[4/5] Generating UltraHonk proof (may take 3–10s)...');
     
     let backend;
@@ -149,6 +155,7 @@ export class NoirService {
       );
     }
 
+    onProgress?.('verify');
     let localOk = false;
     try {
       localOk = await backend.verifyProof(proofData, { keccak: true });
