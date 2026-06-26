@@ -3307,3 +3307,30 @@ button:disabled {
   color: #f5a623;
   font-family: var(--font-mono);
 }
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────
+   Honour the OS "reduce motion" accessibility setting for the battle playback.
+   Framer-motion transforms are neutralised in JS via <MotionConfig
+   reducedMotion="user">, and the playback timeline is compressed in
+   useBattlePlayback. These rules flatten the remaining CSS-only animations
+   (screen-shake vignette, confetti, impact flashes). Scoped to the battle root
+   so normal motion elsewhere (and when no preference is set) is unchanged. */
+@media (prefers-reduced-motion: reduce) {
+  .cinematic-battle-root *,
+  .cinematic-battle-root *::before,
+  .cinematic-battle-root *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  /* Confetti is purely decorative motion — drop it entirely. */
+  .cinematic-confetti {
+    display: none !important;
+  }
+
+  /* No screen-shake / vignette pulse on impact. */
+  .cinematic-battle-canvas--vignette {
+    animation: none !important;
+  }
+}
