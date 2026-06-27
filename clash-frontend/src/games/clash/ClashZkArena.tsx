@@ -654,7 +654,6 @@ function useBattlePlayback(
   useEffect(() => {
     if (!active || !gamePlayback?.turn_results?.length) return;
     const runId = ++runIdRef.current;
-    const timers: number[] = [];
     // Reduced motion compresses the whole timeline (state transitions still run
     // in order, just far quicker) so the playback is short and simple instead of
     // a long cinematic sequence.
