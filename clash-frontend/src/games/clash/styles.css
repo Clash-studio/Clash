@@ -1505,6 +1505,7 @@ button:disabled {
 
 /* Cinematic battle */
 .cinematic-battle-root {
+  position: relative;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -1515,6 +1516,36 @@ button:disabled {
   flex-direction: column;
   gap: 0.75rem;
   overflow-x: hidden;
+}
+
+/* "Skip to results" overlay button, shown while the cinematic is still playing. */
+.cinematic-skip-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 30;
+  padding: 0.35rem 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #d7d7e0;
+  background: rgba(10, 10, 18, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.cinematic-skip-btn:hover {
+  color: #ffffff;
+  background: rgba(229, 19, 58, 0.22);
+  border-color: rgba(229, 19, 58, 0.55);
+}
+
+.cinematic-skip-btn:focus-visible {
+  outline: 2px solid #00d4ff;
+  outline-offset: 2px;
 }
 
 .cinematic-battle-canvas {

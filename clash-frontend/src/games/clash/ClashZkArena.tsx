@@ -622,11 +622,13 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
   }));
 
   const runIdRef = useRef(0);
+  const timersRef = useRef<number[]>([]);
 
   useEffect(() => {
     if (!active || !gamePlayback?.turn_results?.length) return;
     const runId = ++runIdRef.current;
-    const timers: number[] = [];
+    timersRef.current = [];
+    const timers = timersRef.current;
     const q = (ms: number, fn: () => void) => {
       timers.push(
         window.setTimeout(() => {
@@ -814,7 +816,62 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
     };
   }, [active, gamePlayback, userAddress]);
 
-  return { ui };
+  // Skip / fast-forward: cancel any pending steps and jump straight to the final
+  // HP and winner screen. The outcome shown is identical to letting the cinematic
+  // run to completion; only the animated path in between is skipped.
+  const skip = useCallback(() => {
+    if (!active || !gamePlayback?.turn_results?.length) return;
+    runIdRef.current++;
+    timersRef.current.forEach((id) => clearTimeout(id));
+    timersRef.current = [];
+    setUi((s) => computeFinalPlaybackUi(s, gamePlayback, userAddress));
+  }, [active, gamePlayback, userAddress]);
+
+  return { ui, skip };
+}
+
+// Computes the end state of the playback (final HP, winner overlay, results
+// table and buttons) directly from the game result, so "Skip to results" lands
+// on exactly the same screen the cinematic ends on.
+function computeFinalPlaybackUi(
+  prev: BattlePlaybackUi,
+  gp: GamePlayback,
+  userAddress: string,
+): BattlePlaybackUi {
+  const turns = gp.turn_results.slice(0, 3);
+  const last = turns[turns.length - 1];
+  const hp1 = last ? Number(last.player1_hp_remaining) : prev.hp1;
+  const hp2 = last ? Number(last.player2_hp_remaining) : prev.hp2;
+  const isDraw = gp.is_draw;
+  const w = gp.winner?.toString?.() ?? '';
+  const p1w = !isDraw && w === gp.player1;
+  const p2w = !isDraw && w === gp.player2;
+  let outcome: 'win' | 'loss' | 'draw' = 'draw';
+  if (!isDraw) outcome = isLocalPlayer(w, userAddress) ? 'win' : 'loss';
+
+  return {
+    ...prev,
+    round: Math.max(0, turns.length - 1),
+    segment: 'winner',
+    hp1,
+    hp2,
+    p1Anim: p1w ? 'victory' : p2w ? 'defeated' : 'idle',
+    p2Anim: p2w ? 'victory' : p1w ? 'defeated' : 'idle',
+    floatText: null,
+    floatSide: null,
+    showRoundTitle: false,
+    p1AtkCard: false,
+    p1DefCard: false,
+    p2AtkCard: false,
+    p2DefCard: false,
+    narration: null,
+    exchangeFlash: false,
+    vignetteHit: false,
+    showWinnerOverlay: true,
+    showEndTable: true,
+    showEndButtons: true,
+    outcome,
+  };
 }
 
 function stellarExplorerContractUrl(contractId: string) {
@@ -1915,6 +1972,16 @@ export function ClashZkArena({
 
       {phase === 'complete' && gamePlayback && (
         <div className="cinematic-battle-root">
+          {!battlePlayback.ui.showWinnerOverlay && (
+            <button
+              type="button"
+              className="cinematic-skip-btn"
+              onClick={battlePlayback.skip}
+              aria-label="Skip cinematic playback and show results"
+            >
+              Skip to results ⏭
+            </button>
+          )}
           {(() => {
             const tr = gamePlayback.turn_results[battlePlayback.ui.round] ?? gamePlayback.turn_results[0]!;
             const p1Atk = attackMeta(tr.player1_move.attack);
