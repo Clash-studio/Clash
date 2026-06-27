@@ -1429,6 +1429,62 @@ button:disabled {
   white-space: nowrap;
 }
 
+/* Stepped proof progress: Witness → Proof → Verify. */
+.zk-proof-steps {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.zk-proof-step {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: 1;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid rgba(0, 255, 65, 0.18);
+  border-radius: 5px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(0, 255, 65, 0.4);
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.zk-proof-step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+}
+
+.zk-proof-step--pending {
+  color: rgba(120, 200, 140, 0.4);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.zk-proof-step--active {
+  color: #00ff41;
+  border-color: rgba(0, 255, 65, 0.6);
+  background: rgba(0, 255, 65, 0.08);
+}
+
+.zk-proof-step--done {
+  color: #00ff41;
+  border-color: rgba(0, 255, 65, 0.35);
+}
+
+.zk-proof-step-spinner {
+  animation: zkProofStepSpin 0.9s linear infinite;
+}
+
+@keyframes zkProofStepSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .zk-proof-retry-btn {
   margin-top: 0.65rem;
   width: 100%;
@@ -1449,6 +1505,7 @@ button:disabled {
 
 /* Cinematic battle */
 .cinematic-battle-root {
+  position: relative;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -1459,6 +1516,36 @@ button:disabled {
   flex-direction: column;
   gap: 0.75rem;
   overflow-x: hidden;
+}
+
+/* "Skip to results" overlay button, shown while the cinematic is still playing. */
+.cinematic-skip-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 30;
+  padding: 0.35rem 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #d7d7e0;
+  background: rgba(10, 10, 18, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.cinematic-skip-btn:hover {
+  color: #ffffff;
+  background: rgba(229, 19, 58, 0.22);
+  border-color: rgba(229, 19, 58, 0.55);
+}
+
+.cinematic-skip-btn:focus-visible {
+  outline: 2px solid #00d4ff;
+  outline-offset: 2px;
 }
 
 .cinematic-battle-canvas {
