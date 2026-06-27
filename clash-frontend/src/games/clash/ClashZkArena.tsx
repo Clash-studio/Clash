@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
 import { Loader2, Lock, ShieldAlert } from 'lucide-react';
 import { Buffer } from 'buffer';
-import { NoirService, type ClashProofResult } from '@/utils/NoirService';
+import { NoirService, type ClashProofResult, type ClashProofStage } from '@/utils/NoirService';
 import type { ClashGameService } from './clashService';
 import type { SmartAccountService } from './smartAccountService';
 import type { DetailedTurnResult, Game, GamePlayback, Move } from './bindings';
@@ -337,11 +337,18 @@ function MatrixRain({ active }: { active: boolean }) {
 
 type CommitPhase = 'idle' | 'proving' | 'committing' | 'done' | 'proof-error' | 'commit-error';
 
+const PROOF_STEPS: { key: ClashProofStage; label: string }[] = [
+  { key: 'witness', label: 'Witness' },
+  { key: 'proof', label: 'Proof' },
+  { key: 'verify', label: 'Verify' },
+];
+
 function ProofTerminal({
   proofBundle,
   sessionId,
   allMovesComplete,
   commitPhase,
+  proofStage,
   proofError,
   onRetryProof,
 }: {
@@ -349,6 +356,7 @@ function ProofTerminal({
   sessionId: number;
   allMovesComplete: boolean;
   commitPhase: CommitPhase;
+  proofStage: ClashProofStage | null;
   proofError: string | null;
   onRetryProof: () => void;
 }) {
@@ -422,6 +430,8 @@ function ProofTerminal({
     return () => clearTimeout(t);
   }, [generating, lineIdx, charIdx]);
 
+  const activeStepIdx = proofStage ? PROOF_STEPS.findIndex((s) => s.key === proofStage) : -1;
+
   let mode: 'idle' | 'generating' | 'valid' | 'error' = 'idle';
   if (generating) mode = 'generating';
   else if (commitPhase === 'proof-error') mode = 'error';
@@ -471,6 +481,37 @@ function ProofTerminal({
                 <div className="zk-term-progress-fill" style={{ width: `${Math.round(progress)}%` }} />
               </div>
               <span className="zk-term-progress-label">PROVING... {Math.round(progress)}%</span>
+            </div>
+            <div className="zk-proof-steps" role="list" aria-label="Proof generation progress">
+              {PROOF_STEPS.map((step, i) => {
+                const state =
+                  activeStepIdx < 0
+                    ? 'pending'
+                    : i < activeStepIdx
+                    ? 'done'
+                    : i === activeStepIdx
+                    ? 'active'
+                    : 'pending';
+                return (
+                  <div
+                    key={step.key}
+                    className={`zk-proof-step zk-proof-step--${state}`}
+                    role="listitem"
+                    aria-current={state === 'active' ? 'step' : undefined}
+                  >
+                    <span className="zk-proof-step-icon" aria-hidden>
+                      {state === 'active' ? (
+                        <Loader2 className="zk-proof-step-spinner" size={13} />
+                      ) : state === 'done' ? (
+                        '✓'
+                      ) : (
+                        '○'
+                      )}
+                    </span>
+                    <span className="zk-proof-step-label">{step.label}</span>
+                  </div>
+                );
+              })}
             </div>
           </>
         )}
@@ -896,6 +937,7 @@ export function ClashZkArena({
   const [showOnboardingDialog, setShowOnboardingDialog] = useState(false);
   const [sessionKeyToast, setSessionKeyToast] = useState(false);
   const [commitPhase, setCommitPhase] = useState<CommitPhase>('idle');
+  const [proofStage, setProofStage] = useState<ClashProofStage | null>(null);
   const [commitTxError, setCommitTxError] = useState<string | null>(null);
   const [oppRevealToast, setOppRevealToast] = useState(false);
   const [waitingRevealFlash, setWaitingRevealFlash] = useState(false);
@@ -1168,24 +1210,31 @@ export function ClashZkArena({
   const proofMatchesMoves = Boolean(proofBundle && proofMovesKey === movesKey);
 
   const handleForgeAndCommit = async () => {
+    if (busy) return; // guard against double-submit while a proof/commit is in flight
     if (!allMovesComplete(selectedMoves)) return setError('Fill attack and defense for all 3 turns.');
     setCommitTxError(null);
     setError(null);
     setBusy(true);
     setCommitPhase('proving');
+    setProofStage('witness');
     let proofResult: ClashProofResult;
     try {
       const attacks = selectedMoves.map((m) => m.attack!) as [number, number, number];
       const defenses = selectedMoves.map((m) => m.defense!) as [number, number, number];
-      proofResult = await noir.current.generateClashProof('duel_commit_circuit', {
-        attacks,
-        defenses,
-        playerAddress: userAddress,
-        sessionId,
-      });
+      proofResult = await noir.current.generateClashProof(
+        'duel_commit_circuit',
+        {
+          attacks,
+          defenses,
+          playerAddress: userAddress,
+          sessionId,
+        },
+        (stage) => setProofStage(stage),
+      );
     } catch (e) {
       setProofPulse('failed');
       setCommitPhase('proof-error');
+      setProofStage(null);
       setError(e instanceof Error ? e.message : 'Proof generation failed');
       setProofBundle(null);
       setProofMovesKey(null);
@@ -1193,6 +1242,7 @@ export function ClashZkArena({
       setTimeout(() => setProofPulse('idle'), 600);
       return;
     }
+    setProofStage(null);
 
     const nextKey = JSON.stringify(selectedMoves.map((m) => [m.attack, m.defense]));
     setProofBundle(proofResult);
@@ -1782,6 +1832,7 @@ export function ClashZkArena({
                       sessionId={sessionId}
                       allMovesComplete={movesReady}
                       commitPhase={commitPhase}
+                      proofStage={proofStage}
                       proofError={error}
                       onRetryProof={() => void handleForgeAndCommit()}
                     />
