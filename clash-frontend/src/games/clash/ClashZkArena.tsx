@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, type Variants } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig, type Variants } from 'framer-motion';
 import { Loader2, Lock, ShieldAlert } from 'lucide-react';
 import { Buffer } from 'buffer';
 import { NoirService, type ClashProofResult, type ClashProofStage } from '@/utils/NoirService';
@@ -595,7 +595,34 @@ function PirateCharacter({
   );
 }
 
-function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, userAddress: string) {
+// Tracks the OS "reduce motion" accessibility preference, updating live if the
+// user toggles it. Used to shorten the battle playback and to drive the CSS /
+// framer-motion reduced paths.
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState<boolean>(
+    () =>
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  return reduced;
+}
+
+function useBattlePlayback(
+  gamePlayback: GamePlayback | null,
+  active: boolean,
+  userAddress: string,
+  reducedMotion: boolean,
+) {
   const [ui, setUi] = useState<BattlePlaybackUi>(() => ({
     round: 0,
     segment: 'idle',
@@ -627,6 +654,11 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
   useEffect(() => {
     if (!active || !gamePlayback?.turn_results?.length) return;
     const runId = ++runIdRef.current;
+    const timers: number[] = [];
+    // Reduced motion compresses the whole timeline (state transitions still run
+    // in order, just far quicker) so the playback is short and simple instead of
+    // a long cinematic sequence.
+    const timeScale = reducedMotion ? 0.1 : 1;
     timersRef.current = [];
     const timers = timersRef.current;
     const q = (ms: number, fn: () => void) => {
@@ -634,7 +666,7 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
         window.setTimeout(() => {
           if (runId !== runIdRef.current) return;
           fn();
-        }, ms)
+        }, Math.round(ms * timeScale))
       );
     };
 
@@ -814,7 +846,7 @@ function useBattlePlayback(gamePlayback: GamePlayback | null, active: boolean, u
       runIdRef.current++;
       timers.forEach((id) => clearTimeout(id));
     };
-  }, [active, gamePlayback, userAddress]);
+  }, [active, gamePlayback, userAddress, reducedMotion]);
 
   // Skip / fast-forward: cancel any pending steps and jump straight to the final
   // HP and winner screen. The outcome shown is identical to letting the cinematic
@@ -1002,7 +1034,8 @@ export function ClashZkArena({
   const [gameStateSyncing, setGameStateSyncing] = useState(false);
   const wasWaitingForOppRevealRef = useRef(false);
 
-  const battlePlayback = useBattlePlayback(gamePlayback, phase === 'complete' && Boolean(gamePlayback), userAddress);
+  const reducedMotion = usePrefersReducedMotion();
+  const battlePlayback = useBattlePlayback(gamePlayback, phase === 'complete' && Boolean(gamePlayback), userAddress, reducedMotion);
 
   useEffect(() => {
     const id = window.setInterval(() => setPollTick((n) => n + 1), 1000);
@@ -1971,6 +2004,7 @@ export function ClashZkArena({
       )}
 
       {phase === 'complete' && gamePlayback && (
+        <MotionConfig reducedMotion="user">
         <div className="cinematic-battle-root">
           {!battlePlayback.ui.showWinnerOverlay && (
             <button
@@ -2329,6 +2363,7 @@ export function ClashZkArena({
             );
           })()}
         </div>
+        </MotionConfig>
       )}
 
       {phase === 'complete' && (success || error) && (
